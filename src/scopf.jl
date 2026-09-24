@@ -268,9 +268,9 @@ function build_scopf_body(core, form::OPFForm, data, K, Nbus, user_callback,
         lvar = data.rep.extramin, uvar = data.rep.extramax)
     core, F = add_flow_vars_mp!(core, form, data, Ns)
 
-    # Averaged over the base case and the contingencies, so the value is
-    # comparable to a single-period cost.
-    @add_obj(core, o, gen_cost(g, G.pg[g.i, 1]) for (g, c) in data.genarray)
+    # The base-case cost only: corrective redispatch in a contingency is free,
+    # so the value is comparable to a single-period cost.
+    @add_obj(core, o, gen_cost(g, G.pg[g.i, 1]) for g in data.gen)
 
     core, thermal = add_thermal_mp!(core, form, data, F)
 
@@ -371,7 +371,7 @@ function scopf_model(
     # against the same arguments the model was built from.
     return model,
            ExaModels.instantiate(vars, args...),
-           ExaModels.instantiate(cons, args...), args
+           ExaModels.instantiate(cons, args...)
 end
 
 # ── the two-stage model: arguments ──────────────────────────────────────────
@@ -553,7 +553,8 @@ function add_vmag_scen!(core, ::Rect, data, V)
 end
 
 # The design block: the static AC OPF, built from the static model's own halves.
-# Its objective is scaled with the scenarios' so the total is the average cost.
+# Its objective is the whole objective: the scenario blocks carry no cost, as in
+# `scopf_model`, where only the base case is priced.
 function add_scopf_design!(core, form, data, K, V, G, F)
     @add_obj(core, o_base, gen_cost(g, G.pg[g.i]) for g in data.gen)
     @add_con(core, c_ref_angle, c_ref(form, V, i) for i in data.ref_buses)
