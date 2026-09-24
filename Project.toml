@@ -16,7 +16,13 @@ ExaModelsPowerExaModelsCompilerExt = "ExaModelsCompiler"
 
 [compat]
 ExaModels = "0.11"
-ExaPowerIO = "0.3"
+# 0.3.1 rather than 0.3: v0.3.0 builds `bus_map` from an untyped `[]` narrowed
+# by its `Vector{Int}` annotation, and the resulting
+# `convert(Vector{Int64}, ::Vector{Any})` copies through a dynamic `setindex!`
+# that `juliac --trim=safe` will not resolve. Resolving to it makes
+# `compile_all` fail on four verifier errors that all bottom out in that one
+# conversion, so the floor is a build requirement, not a preference.
+ExaPowerIO = "0.3.1"
 JSON = "0.21"
 julia = "1.11"
 

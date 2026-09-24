@@ -59,6 +59,81 @@ model, cons, vars, lengths, sc_data_array = goc3_model(
 result = madnlp(model; tol=1e-4)
 ```
 
+### Generic N-1 security-constrained OPF
+
+Independent of the GOC3 formulation, `scopf_model` builds a lightweight, hard-constrained
+N-1 SCOPF. Each contingency is a generator or branch (line) outage; the base case plus all
+contingencies are solved together as one OPF, with bounded corrective generator redispatch
+in the post-contingency scenarios. MATPOWER `rateA = 0` ("unlimited") is mapped to a large
+finite rating.
+
+`form` takes `Polar()` (default), `Rect()` or `DC()`. A line outage is a mask, and the two
+families read different fields: AC zeroes the branch admittance coefficients, DC zeroes the
+branch susceptance. (Zeroing the reactance instead would divide by zero on the
+zero-resistance branches real cases contain — 3 of 9 in `case9`.) Either way the outaged
+line's flow is forced to zero.
+
+```julia
+using ExaModelsPower, MadNLP, DelimitedFiles
+
+# One outage per entry; (type = :gen, idx = g) is also supported.
+idxs = vec(readdlm("data/case118.Ctgs", Int))         # 1-based branch indices
+contingencies = [(type = :branch, idx = l) for l in idxs]
+
+model, vars, cons = scopf_model("case118.m", contingencies; form = Polar())
+result = madnlp(model; tol = 1e-4)
+
+# On a GPU backend, solve the condensed KKT system with cuDSS:
+using MadNLPGPU, CUDA, CUDSS
+model, vars, cons = scopf_model("case118.m", contingencies; backend = CUDABackend())
+result = madnlp(model;
+    kkt_system    = MadNLP.SparseCondensedKKTSystem,
+    linear_solver = MadNLPGPU.CUDSSSolver,
+    tol = 1e-4)
+```
+
+#### Two-stage / Schur form
+
+`scopf_twostage_model` builds the same problem — AC only — on a `TwoStageExaCore` (base case =
+first stage, each contingency = a scenario) so it can be solved with MadNLP's `SchurComplementCondensedKKTSystem`,
+which factorizes the per-contingency blocks in parallel. It returns an extra `post_solve_info`
+NamedTuple with the Schur dimensions:
+
+```julia
+model, vars, cons, info = scopf_twostage_model("case118.m", contingencies; backend = CUDABackend())
+result = madnlp(model;
+    callback      = MadNLP.SparseCallback,
+    kkt_system    = MadNLP.SchurComplementCondensedKKTSystem,
+    linear_solver = MadNLPGPU.CUDSSSolver,
+    kkt_options   = Dict{Symbol,Any}(
+        :schur_ns => info.ns, :schur_nv => info.nv,
+        :schur_nd => info.nd, :schur_nc => info.nc,
+        :schur_var_scen => info.var_scen, :schur_con_scen => info.con_scen))
+```
+
+The two scenario-tag vectors are not optional. ExaModels interleaves design and
+scenario entries rather than laying them out contiguously, and MadNLP cannot
+recover that partition from the dimensions alone — so `info.var_scen` and
+`info.con_scen` are what let the Schur solver find the blocks.
+
+> **Note.** The base-case physics are first-stage *design* constraints, which
+> `SchurComplementCondensedKKTSystem` only learned to carry recently — hence the
+> MadNLP source pin in `test/Project.toml` and `examples/Project.toml`. It comes
+> out when MadNLP tags a release containing it.
+
+A runnable example covering both solve modes (`--mode single`/`twostage`/`compare`), all three
+formulations (`--form polar`/`rect`/`dc`), and a choice of case (`--case case9`/`case118`) is in
+[`examples/scopf.jl`](examples/scopf.jl). Options are ArgParse CLI flags:
+
+```bash
+julia --project=./examples examples/scopf.jl --help
+julia --project=./examples examples/scopf.jl --case case9 --mode twostage --form rect
+julia --project=./examples examples/scopf.jl --case case9 --mode single --form dc
+julia --project=./examples examples/scopf.jl --gpu --inertia free
+```
+
+`--form dc` runs under `--mode single` only, `scopf_twostage_model` being AC-only.
+
 ### Multi-period optimal power flow
 ```julia
 model, vars, cons = mpopf_model(

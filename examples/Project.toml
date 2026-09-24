@@ -1,0 +1,22 @@
+[deps]
+ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+CUDSS = "45b445bb-4962-46a0-9369-b4df9d0f772e"
+DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+ExaModels = "1037b233-b668-4ce9-9b63-f9f681f55dd2"
+ExaModelsPower = "2fff4b78-0b6c-428d-bac8-85ccea8c4bdf"
+MadNLP = "2621e9c9-9eb4-46b1-8089-e8c72242dfb6"
+MadNLPGPU = "d72a61cc-809d-412f-99be-fd81f4b8a598"
+
+# Without these the documented `julia --project=./examples` resolves
+# ExaModelsPower from the registry rather than from this checkout, and the
+# example then calls entry points the released version does not have. A
+# package's own `[sources]` applies only while it is the ACTIVE project, so the
+# pins ExaModelsPower and test/ carry are repeated here rather than inherited --
+# same SHAs, same reason: a branch name is not reproducible under a restored
+# package cache.
+[sources]
+ExaModelsPower = {path = ".."}
+ExaModels = {rev = "a9fbf9ccb5afcfb973bc09ed10d7e6b5f24e07a3", url = "https://github.com/madsuite-org/ExaModels.jl"}
+MadNLP = {rev = "6dd1a6994453d580de69c589117c7327a96300ad", url = "https://github.com/MadNLP/MadNLP.jl"}
+MadNLPGPU = {rev = "6dd1a6994453d580de69c589117c7327a96300ad", subdir = "lib/MadNLPGPU", url = "https://github.com/MadNLP/MadNLP.jl"}

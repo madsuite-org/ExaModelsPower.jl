@@ -16,7 +16,11 @@ function parse_mp_power_data(filename, N, corrective_action_ratio, ::Type{T}) wh
         ;
         raw...,
         refarray = [(i,t) for i in raw.ref_buses, t in 1:N],
-        barray = [(;b, t = t) for b in raw.branch, t in 1:N ],
+        # `bs` is the DC susceptance, carried as data so the DC flow equation
+        # reads it off the row instead of recomputing it from `b`. The AC forms
+        # ignore the field; a replicated model that masks a branch out needs it
+        # to be maskable, and here there is nothing to mask.
+        barray = [(;b, t = t, bs = dc_susceptance(b)) for b in raw.branch, t in 1:N ],
         busarray = [(;b, t = t) for b in raw.bus, t in 1:N ],
         arcarray = [(;a, t = t) for a in raw.arc, t in 1:N ],
         genarray = [(;g, t = t) for g in raw.gen, t in 1:N ],
@@ -259,44 +263,26 @@ function add_voltage_mp!(core, ::DC, data, Nbus, N, ::Type{T}) where {T}
     return core, (; va)
 end
 
-# The same expressions as the static body, read at `[i, t]` rather than `[i]`.
-@inline c_ref_mp(::Union{Polar,DC}, V, i, t) = c_ref_angle_polar(V.va[i, t])
-@inline c_ref_mp(::Rect, V, i, t) = c_ref_angle_rect(V.vr[i, t], V.vim[i, t])
-
-@inline c_angle_mp(::Union{Polar,DC}, b, V, t) =
-    c_phase_angle_diff_polar(b, V.va[b.f_bus, t], V.va[b.t_bus, t])
-@inline c_angle_mp(::Rect, b, V, t) =
-    c_phase_angle_diff_rect(b, V.vr[b.f_bus, t], V.vr[b.t_bus, t], V.vim[b.f_bus, t], V.vim[b.t_bus, t])
-
-@inline c_bal_p_mp(::Polar, b, V, t) = c_active_power_balance_demand_polar(b, V.vm[b.i, t])
-@inline c_bal_p_mp(::Rect, b, V, t) = c_active_power_balance_demand_rect(b, V.vr[b.i, t], V.vim[b.i, t])
-@inline c_bal_p_mp(::DC, b, V, t) = c_active_power_balance_dc(b)
-@inline c_bal_q_mp(::Polar, b, V, t) = c_reactive_power_balance_demand_polar(b, V.vm[b.i, t])
-@inline c_bal_q_mp(::Rect, b, V, t) = c_reactive_power_balance_demand_rect(b, V.vr[b.i, t], V.vim[b.i, t])
-
-@inline ac_flow_mp(f, s::Symbol, b, F, V, t) = ac_flow_mp(f, Val(s), b, F, V, t)
-@inline ac_flow_mp(::Polar, ::Val{:ta}, b, F, V, t) = c_to_active_power_flow_polar(b, F.p[b.f_idx, t], V.vm[b.f_bus, t], V.vm[b.t_bus, t], V.va[b.f_bus, t], V.va[b.t_bus, t])
-@inline ac_flow_mp(::Polar, ::Val{:tr}, b, F, V, t) = c_to_reactive_power_flow_polar(b, F.q[b.f_idx, t], V.vm[b.f_bus, t], V.vm[b.t_bus, t], V.va[b.f_bus, t], V.va[b.t_bus, t])
-@inline ac_flow_mp(::Polar, ::Val{:fa}, b, F, V, t) = c_from_active_power_flow_polar(b, F.p[b.t_idx, t], V.vm[b.f_bus, t], V.vm[b.t_bus, t], V.va[b.f_bus, t], V.va[b.t_bus, t])
-@inline ac_flow_mp(::Polar, ::Val{:fr}, b, F, V, t) = c_from_reactive_power_flow_polar(b, F.q[b.t_idx, t], V.vm[b.f_bus, t], V.vm[b.t_bus, t], V.va[b.f_bus, t], V.va[b.t_bus, t])
-@inline ac_flow_mp(::Rect, ::Val{:ta}, b, F, V, t) = c_to_active_power_flow_rect(b, F.p[b.f_idx, t], V.vr[b.f_bus, t], V.vr[b.t_bus, t], V.vim[b.f_bus, t], V.vim[b.t_bus, t])
-@inline ac_flow_mp(::Rect, ::Val{:tr}, b, F, V, t) = c_to_reactive_power_flow_rect(b, F.q[b.f_idx, t], V.vr[b.f_bus, t], V.vr[b.t_bus, t], V.vim[b.f_bus, t], V.vim[b.t_bus, t])
-@inline ac_flow_mp(::Rect, ::Val{:fa}, b, F, V, t) = c_from_active_power_flow_rect(b, F.p[b.t_idx, t], V.vr[b.f_bus, t], V.vr[b.t_bus, t], V.vim[b.f_bus, t], V.vim[b.t_bus, t])
-@inline ac_flow_mp(::Rect, ::Val{:fr}, b, F, V, t) = c_from_reactive_power_flow_rect(b, F.q[b.t_idx, t], V.vr[b.f_bus, t], V.vr[b.t_bus, t], V.vim[b.f_bus, t], V.vim[b.t_bus, t])
+# There is no `_mp` selector family. The expressions are the same ones the
+# static body uses, read at `[i, t]` rather than `[i]`, and every selector in
+# opf.jl takes a trailing index tail for exactly that — so the time index is
+# passed as that tail and the static definitions serve unchanged.
 
 function add_flow_cons_mp!(core, form::Union{Polar,Rect}, data, V, F)
-    @add_con(core, c_to_active_power_flow, ac_flow_mp(form, :ta, b, F, V, t) for (b, t) in data.barray)
-    @add_con(core, c_to_reactive_power_flow, ac_flow_mp(form, :tr, b, F, V, t) for (b, t) in data.barray)
-    @add_con(core, c_from_active_power_flow, ac_flow_mp(form, :fa, b, F, V, t) for (b, t) in data.barray)
-    @add_con(core, c_from_reactive_power_flow, ac_flow_mp(form, :fr, b, F, V, t) for (b, t) in data.barray)
+    @add_con(core, c_to_active_power_flow, ac_flow(form, :ta, b, F, V, t) for (b, t) in data.barray)
+    @add_con(core, c_to_reactive_power_flow, ac_flow(form, :tr, b, F, V, t) for (b, t) in data.barray)
+    @add_con(core, c_from_active_power_flow, ac_flow(form, :fa, b, F, V, t) for (b, t) in data.barray)
+    @add_con(core, c_from_reactive_power_flow, ac_flow(form, :fr, b, F, V, t) for (b, t) in data.barray)
     return core, (; c_to_active_power_flow, c_to_reactive_power_flow,
                     c_from_active_power_flow, c_from_reactive_power_flow)
 end
 
+# `bs` rides on the branch row rather than being recomputed from `br`, so a
+# model that masks a branch out (SCOPF's line outage) can hand in a zero and
+# reuse this method unchanged.
 function add_flow_cons_mp!(core, ::DC, data, V, F)
     @add_con(core, c_ohms_law,
-        c_ohms_law_dcopf(br, F.pf[br.i, t], V.va[br.f_bus, t], V.va[br.t_bus, t])
-        for (br, t) in data.barray)
+        dc_ohms(br, bs, F, V, t) for (br, t, bs) in data.barray)
     return core, (; c_ohms_law)
 end
 
@@ -307,13 +293,13 @@ end
 # equivalence check sees. (The static body has the opposite order and is split
 # the same way for the same reason.)
 function add_balance_cons_mp!(core, form::Union{Polar,Rect}, data, V)
-    @add_con(core, c_active_power_balance, c_bal_p_mp(form, b, V, t) for (b, t) in data.busarray)
-    @add_con(core, c_reactive_power_balance, c_bal_q_mp(form, b, V, t) for (b, t) in data.busarray)
+    @add_con(core, c_active_power_balance, c_bal_p(form, b, V, t) for (b, t) in data.busarray)
+    @add_con(core, c_reactive_power_balance, c_bal_q(form, b, V, t) for (b, t) in data.busarray)
     return core, (; c_active_power_balance, c_reactive_power_balance)
 end
 
 function add_balance_cons_mp!(core, form::DC, data, V)
-    @add_con(core, c_active_power_balance, c_bal_p_mp(form, b, V, t) for (b, t) in data.busarray)
+    @add_con(core, c_active_power_balance, c_bal_p(form, b, V, t) for (b, t) in data.busarray)
     return core, (; c_active_power_balance)
 end
 
@@ -345,9 +331,9 @@ add_extras_mp!(core, ::Union{Polar,DC}, data, N, V) = (core, (;))
 
 function add_mpopf_cons(core, form, data, N, Nbus, vars, cons, ::Type{T} = Float64) where {T}
     core, V = add_voltage_mp!(core, form, data, Nbus, N, T)
-    @add_con(core, c_ref_angle, c_ref_mp(form, V, i, t) for (i, t) in data.refarray)
+    @add_con(core, c_ref_angle, c_ref(form, V, i, t) for (i, t) in data.refarray)
     core, flowcons = add_flow_cons_mp!(core, form, data, V, vars)
-    @add_con(core, c_phase_angle_diff, c_angle_mp(form, b, V, t) for (b, t) in data.barray;
+    @add_con(core, c_phase_angle_diff, c_angle(form, b, V, t) for (b, t) in data.barray;
         lcon = data.rep.angmin,
         ucon = data.rep.angmax)
     core, balcons = add_balance_cons_mp!(core, form, data, V)

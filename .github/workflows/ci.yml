@@ -30,9 +30,10 @@ jobs:
       fail-fast: false
       matrix:
         julia-version: ['1']
-        # Each backend, and the GOC3 smoke test, run as their own job so that the wall
-        # clock is the slowest slice rather than the sum of all of them.
-        selection: ['nothing', 'cpu', 'cuda', 'goc3']
+        # Each backend, the GOC3 smoke test, and the ahead-of-time compile run as their
+        # own job so that the wall clock is the slowest slice rather than the sum of all
+        # of them.
+        selection: ['nothing', 'cpu', 'cuda', 'goc3', 'aot']
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

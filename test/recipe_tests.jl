@@ -37,6 +37,42 @@ function test_recipe_equivalence(filename, form; T = Float64)
           NLPModels.hess_coord(m2, x, y; obj_weight = T(0.7))
 end
 
+# The same guarantee for the security-constrained model. It is the one whose
+# recipe carries a symbolic `Nbus` into arithmetic -- the balance appends index
+# row `a.bus + Nbus * (k - 1)` -- so recipe and eager agreeing here is a
+# stronger statement than it is for the static model, where nothing is offset.
+function test_scopf_recipe_equivalence(filename, form;
+                                       T = Float64,
+                                       contingencies = ExaModelsPower.SCOPF_DEFAULT_CONTINGENCIES)
+    K = length(contingencies)
+    m1, _, _ = scopf_model(filename, contingencies; form = form, T = T)
+
+    data, = ExaModelsPower.scopf_args(filename, contingencies; K = K, T = T)
+    core, _, _ = ExaModelsPower.build_scopf_body(ExaCore(T), form, data, K,
+                                                 length(data.bus),
+                                                 ExaModelsPower.dummy_extension, T)
+    m2 = ExaModel(core)
+
+    @test m1.meta.nvar == m2.meta.nvar
+    @test m1.meta.ncon == m2.meta.ncon
+    @test m1.meta.nnzj == m2.meta.nnzj
+    @test m1.meta.nnzh == m2.meta.nnzh
+    @test Array(m1.meta.x0) == Array(m2.meta.x0)
+    @test Array(m1.meta.lvar) == Array(m2.meta.lvar)
+    @test Array(m1.meta.uvar) == Array(m2.meta.uvar)
+    @test Array(m1.meta.lcon) == Array(m2.meta.lcon)
+    @test Array(m1.meta.ucon) == Array(m2.meta.ucon)
+
+    x = T[1 + T(0.01) * sin(i) for i = 1:m1.meta.nvar]
+    y = T[T(0.01) * cos(i) for i = 1:m1.meta.ncon]
+    @test NLPModels.obj(m1, x) == NLPModels.obj(m2, x)
+    @test NLPModels.grad(m1, x) == NLPModels.grad(m2, x)
+    @test NLPModels.cons(m1, x) == NLPModels.cons(m2, x)
+    @test NLPModels.jac_coord(m1, x) == NLPModels.jac_coord(m2, x)
+    @test NLPModels.hess_coord(m1, x, y; obj_weight = T(0.7)) ==
+          NLPModels.hess_coord(m2, x, y; obj_weight = T(0.7))
+end
+
 # REGRESSION. The handles `ac_opf_model` returns come out of the RECIPE, where
 # an offset is still an `ArgNode` expression rather than a number. Unless they
 # are resolved against the arguments the model was built from, `solution`
@@ -61,17 +97,19 @@ function test_solution_handles(filename, form)
     @test total == m.meta.nvar
 end
 
-# Compiling costs ~90 s per form and needs ExaModelsC, which is not a test
-# dependency, so it is opt-in: EMP_TEST_AOT=1.
-# Compiling is minutes, so this is opt-in and runs ONCE for the whole suite
-# rather than once per case and formulation: the plain default call a user
-# makes, then a few properties of what comes back. `obj`/`cons` are checked
-# away from x0, so a library that returned constants -- or that ignored the
-# case it was handed -- would fail rather than agree trivially.
+# Compiling is minutes of juliac, so this runs ONCE for the whole suite rather
+# than once per case and formulation: one call, then a few properties of what
+# comes back. `obj`/`cons` are checked away from x0, so a library that returned
+# constants -- or that ignored the case it was handed -- would fail rather than
+# agree trivially.
 function test_aot()
-    r = compile_all(ExaModelsPower)
+    # A directory of our own rather than the `@emp` default. A `@name` path
+    # resolves against CNLPMODELS_PATH, which nothing in this repo sets, so the
+    # default would fail this test on the environment rather than on the models.
+    r = compile_all(ExaModelsPower; path = mkpath(joinpath(mktempdir(), "emp")))
     @test isfile(r.libpath)
-    @test Set(Symbol.(r.prefixes)) == Set((:acp, :acr, :dcp, :mpacp, :mpacr, :mpdcp))
+    @test Set(Symbol.(r.prefixes)) ==
+          Set((:acp, :acr, :dcp, :mpacp, :mpacr, :mpdcp, :scacp, :scacr, :scdcp))
 
     case = "pglib_opf_case14_ieee.m"
     m = CNLPModel(r.libpath, :acp, case)
@@ -89,4 +127,15 @@ function test_aot()
                              ExaModelsPower.MPOPF_DEFAULT_CURVE;
                              form = ExaModelsPower.DC())
     @test (m3.meta.nvar, m3.meta.ncon) == (ref3.meta.nvar, ref3.meta.ncon)
+
+    # Same again for the security-constrained model, whose baked structure is a
+    # contingency LIST rather than a horizon -- the axis most likely to be got
+    # wrong when only the case changes underneath it.
+    m4 = CNLPModel(r.libpath, :scacp, "pglib_opf_case3_lmbd.m")
+    ref4, _, _ = scopf_model("pglib_opf_case3_lmbd.m",
+                             ExaModelsPower.SCOPF_DEFAULT_CONTINGENCIES)
+    @test (m4.meta.nvar, m4.meta.ncon) == (ref4.meta.nvar, ref4.meta.ncon)
+    x4 = [0.9 + 0.02sin(i) for i = 1:m4.meta.nvar]
+    @test NLPModels.obj(m4, x4) == NLPModels.obj(ref4, x4)
+    @test collect(NLPModels.cons(m4, x4)) == collect(NLPModels.cons(ref4, x4))
 end

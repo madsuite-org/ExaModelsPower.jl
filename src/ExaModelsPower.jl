@@ -1,6 +1,7 @@
 module ExaModelsPower
 
 import ExaModels: ExaModels, ExaCore, @add_var, @add_par, @add_con, @add_obj, @add_con!, ExaModel, convert_array, solution
+import ExaModels: TwoStageExaCore, EachScenario
 using DelimitedFiles
 using ExaPowerIO
 using JSON
@@ -14,6 +15,7 @@ include("sc_parser.jl")       #   "
 include("opf.jl")             # static: polar, rect, DC
 include("mpopf.jl")           # multi-period: polar, rect, DC
 include("goc3.jl")            # security-constrained, GOC3 formulation
+include("scopf.jl")           # security-constrained, N-1: monolithic + two-stage Schur
 
 const NAMES = filter(names(@__MODULE__; all = true)) do x
     str = string(x)
@@ -36,6 +38,8 @@ export ac_opf_recipe, ac_opf_args
 export dcopf_recipe
 export mpopf_recipe, mpopf_args
 export mpopf_args_default, MPOPF_DEFAULT_CURVE
+export scopf_recipe, scopf_args
+export scopf_args_default, SCOPF_DEFAULT_CONTINGENCIES
     
 # A `const Ref`, not a plain global. `global TMPDIR = ...` leaves the binding
 # typed `Any`, and `mkpath(TMPDIR::Any)` is then an unresolved call that

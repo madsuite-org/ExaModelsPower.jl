@@ -223,40 +223,64 @@ function add_flows!(core, ::Union{Polar,Rect}, d)
 end
 
 # ── the expressions that differ by formulation ──────────────────────────────
+#
+# Every selector carries a trailing `idx...`, so ONE definition serves the
+# static model (empty tail, `V.va[i]`) and every model that replicates the base
+# problem over a second axis — the multi-period one at `[i, t]` and the
+# security-constrained one at `[i, c]`. They were three copies of this family
+# before; the copies differed only by the index tail and by the `_mp` suffix, so
+# nothing here is a generalization of the static form, it IS the static form.
+#
+# The splat is resolved at compile time (the tail's length is in the type), so
+# the traced expression is identical to the hand-written index — `V.va[i]` when
+# the tail is empty, `V.va[i, t]` when it is `(t,)`.
 
-@inline c_ref(::Polar, V, i) = c_ref_angle_polar(V.va[i])
-@inline c_ref(::Rect, V, i) = c_ref_angle_rect(V.vr[i], V.vim[i])
+@inline c_ref(::Union{Polar,DC}, V, i, idx...) = c_ref_angle_polar(V.va[i, idx...])
+@inline c_ref(::Rect, V, i, idx...) = c_ref_angle_rect(V.vr[i, idx...], V.vim[i, idx...])
 
-@inline c_angle(::Polar, b, V) = c_phase_angle_diff_polar(b, V.va[b.f_bus], V.va[b.t_bus])
-@inline c_angle(::Rect, b, V) =
-    c_phase_angle_diff_rect(b, V.vr[b.f_bus], V.vr[b.t_bus], V.vim[b.f_bus], V.vim[b.t_bus])
+@inline c_angle(::Union{Polar,DC}, b, V, idx...) =
+    c_phase_angle_diff_polar(b, V.va[b.f_bus, idx...], V.va[b.t_bus, idx...])
+@inline c_angle(::Rect, b, V, idx...) =
+    c_phase_angle_diff_rect(b, V.vr[b.f_bus, idx...], V.vr[b.t_bus, idx...],
+        V.vim[b.f_bus, idx...], V.vim[b.t_bus, idx...])
 
-@inline c_bal_p(::Polar, b, V) = c_active_power_balance_demand_polar(b, V.vm[b.i])
-@inline c_bal_p(::Rect, b, V) = c_active_power_balance_demand_rect(b, V.vr[b.i], V.vim[b.i])
-@inline c_bal_q(::Polar, b, V) = c_reactive_power_balance_demand_polar(b, V.vm[b.i])
-@inline c_bal_q(::Rect, b, V) = c_reactive_power_balance_demand_rect(b, V.vr[b.i], V.vim[b.i])
+@inline c_bal_p(::Polar, b, V, idx...) = c_active_power_balance_demand_polar(b, V.vm[b.i, idx...])
+@inline c_bal_p(::Rect, b, V, idx...) =
+    c_active_power_balance_demand_rect(b, V.vr[b.i, idx...], V.vim[b.i, idx...])
+# The DC active balance takes no voltage; `V` and the index tail are carried for
+# uniformity with the other formulations.
+@inline c_bal_p(::DC, b, V, idx...) = c_active_power_balance_dc(b)
+@inline c_bal_q(::Polar, b, V, idx...) = c_reactive_power_balance_demand_polar(b, V.vm[b.i, idx...])
+@inline c_bal_q(::Rect, b, V, idx...) =
+    c_reactive_power_balance_demand_rect(b, V.vr[b.i, idx...], V.vim[b.i, idx...])
+
+# The DC branch flow. `bs` is passed rather than read off `br` so a replicated
+# model can hand in a MASKED susceptance and so express a line outage; see
+# `dc_susceptance` in constraint.jl.
+@inline dc_ohms(br, bs, F, V, idx...) =
+    c_ohms_law_dcopf(bs, F.pf[br.i, idx...], V.va[br.f_bus, idx...], V.va[br.t_bus, idx...])
 
 # The four AC branch flows, selected by a `Val` rather than by four more helper
 # names per formulation. This is the one place the merged form reads worse than
 # the duplicated one; it is eight one-line methods against eight inline
 # expressions, and it keeps `add_flow_constraints!` shared.
-@inline ac_flow(f, s::Symbol, b, F, V) = ac_flow(f, Val(s), b, F, V)
-@inline ac_flow(::Polar, ::Val{:ta}, b, F, V) =
-    c_to_active_power_flow_polar(b, F.p[b.f_idx], V.vm[b.f_bus], V.vm[b.t_bus], V.va[b.f_bus], V.va[b.t_bus])
-@inline ac_flow(::Polar, ::Val{:tr}, b, F, V) =
-    c_to_reactive_power_flow_polar(b, F.q[b.f_idx], V.vm[b.f_bus], V.vm[b.t_bus], V.va[b.f_bus], V.va[b.t_bus])
-@inline ac_flow(::Polar, ::Val{:fa}, b, F, V) =
-    c_from_active_power_flow_polar(b, F.p[b.t_idx], V.vm[b.f_bus], V.vm[b.t_bus], V.va[b.f_bus], V.va[b.t_bus])
-@inline ac_flow(::Polar, ::Val{:fr}, b, F, V) =
-    c_from_reactive_power_flow_polar(b, F.q[b.t_idx], V.vm[b.f_bus], V.vm[b.t_bus], V.va[b.f_bus], V.va[b.t_bus])
-@inline ac_flow(::Rect, ::Val{:ta}, b, F, V) =
-    c_to_active_power_flow_rect(b, F.p[b.f_idx], V.vr[b.f_bus], V.vr[b.t_bus], V.vim[b.f_bus], V.vim[b.t_bus])
-@inline ac_flow(::Rect, ::Val{:tr}, b, F, V) =
-    c_to_reactive_power_flow_rect(b, F.q[b.f_idx], V.vr[b.f_bus], V.vr[b.t_bus], V.vim[b.f_bus], V.vim[b.t_bus])
-@inline ac_flow(::Rect, ::Val{:fa}, b, F, V) =
-    c_from_active_power_flow_rect(b, F.p[b.t_idx], V.vr[b.f_bus], V.vr[b.t_bus], V.vim[b.f_bus], V.vim[b.t_bus])
-@inline ac_flow(::Rect, ::Val{:fr}, b, F, V) =
-    c_from_reactive_power_flow_rect(b, F.q[b.t_idx], V.vr[b.f_bus], V.vr[b.t_bus], V.vim[b.f_bus], V.vim[b.t_bus])
+@inline ac_flow(f, s::Symbol, b, F, V, idx...) = ac_flow(f, Val(s), b, F, V, idx...)
+@inline ac_flow(::Polar, ::Val{:ta}, b, F, V, idx...) =
+    c_to_active_power_flow_polar(b, F.p[b.f_idx, idx...], V.vm[b.f_bus, idx...], V.vm[b.t_bus, idx...], V.va[b.f_bus, idx...], V.va[b.t_bus, idx...])
+@inline ac_flow(::Polar, ::Val{:tr}, b, F, V, idx...) =
+    c_to_reactive_power_flow_polar(b, F.q[b.f_idx, idx...], V.vm[b.f_bus, idx...], V.vm[b.t_bus, idx...], V.va[b.f_bus, idx...], V.va[b.t_bus, idx...])
+@inline ac_flow(::Polar, ::Val{:fa}, b, F, V, idx...) =
+    c_from_active_power_flow_polar(b, F.p[b.t_idx, idx...], V.vm[b.f_bus, idx...], V.vm[b.t_bus, idx...], V.va[b.f_bus, idx...], V.va[b.t_bus, idx...])
+@inline ac_flow(::Polar, ::Val{:fr}, b, F, V, idx...) =
+    c_from_reactive_power_flow_polar(b, F.q[b.t_idx, idx...], V.vm[b.f_bus, idx...], V.vm[b.t_bus, idx...], V.va[b.f_bus, idx...], V.va[b.t_bus, idx...])
+@inline ac_flow(::Rect, ::Val{:ta}, b, F, V, idx...) =
+    c_to_active_power_flow_rect(b, F.p[b.f_idx, idx...], V.vr[b.f_bus, idx...], V.vr[b.t_bus, idx...], V.vim[b.f_bus, idx...], V.vim[b.t_bus, idx...])
+@inline ac_flow(::Rect, ::Val{:tr}, b, F, V, idx...) =
+    c_to_reactive_power_flow_rect(b, F.q[b.f_idx, idx...], V.vr[b.f_bus, idx...], V.vr[b.t_bus, idx...], V.vim[b.f_bus, idx...], V.vim[b.t_bus, idx...])
+@inline ac_flow(::Rect, ::Val{:fa}, b, F, V, idx...) =
+    c_from_active_power_flow_rect(b, F.p[b.t_idx, idx...], V.vr[b.f_bus, idx...], V.vr[b.t_bus, idx...], V.vim[b.f_bus, idx...], V.vim[b.t_bus, idx...])
+@inline ac_flow(::Rect, ::Val{:fr}, b, F, V, idx...) =
+    c_from_reactive_power_flow_rect(b, F.q[b.t_idx, idx...], V.vr[b.f_bus, idx...], V.vr[b.t_bus, idx...], V.vim[b.f_bus, idx...], V.vim[b.t_bus, idx...])
 
 # ── constraint groups ───────────────────────────────────────────────────────
 
@@ -430,15 +454,14 @@ function add_flows!(core, ::DC, d)
     return core, (; pf)
 end
 
-@inline c_ref(::DC, V, i) = c_ref_angle_polar(V.va[i])
-@inline c_angle(::DC, b, V) = c_phase_angle_diff_polar(b, V.va[b.f_bus], V.va[b.t_bus])
-# The DC active balance takes no voltage; `V` is carried for uniformity with
-# the other formulations.
-@inline c_bal_p(::DC, b, V) = c_active_power_balance_dc(b)
+# The DC selectors are the Polar ones: `c_ref`, `c_angle` and `c_bal_p` are
+# defined once, above, with `DC` in their signatures.
 
 function add_flow_constraints!(core, ::DC, d, V, F)
+    # The susceptance is a per-branch constant here — the static model has no
+    # outage to mask it for — so it is computed from the branch in place.
     @add_con(core, c_ohms_law,
-        c_ohms_law_dcopf(br, F.pf[br.i], V.va[br.f_bus], V.va[br.t_bus]) for br in d.branch)
+        dc_ohms(br, dc_susceptance(br), F, V) for br in d.branch)
     return core, (; c_ohms_law)
 end
 

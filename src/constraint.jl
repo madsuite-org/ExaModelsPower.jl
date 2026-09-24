@@ -161,10 +161,17 @@ function c_comp(pstd, pstc)
 end
 
 # DCOPF
-function c_ohms_law_dcopf(br, pf, va_f, va_t)
-    r2_x2 = br.br_r^2 + br.br_x^2
-    b_val = -br.br_x / r2_x2
-    return -b_val * (va_f - va_t) - pf
+#
+# The susceptance is split out of the flow equation so a caller can compute it
+# once, as data, and hand a MODIFIED value in. That is what makes a line outage
+# expressible in DC: the AC outage zeroes the admittance coefficients c1..c8,
+# but the DC flow is derived from `br_r`/`br_x`, and zeroing `br_x` gives 0/0 on
+# the zero-resistance branches real cases contain (3 of 9 in case9, 9 of 186 in
+# case118). Masking `bs` itself has no such hole.
+dc_susceptance(br) = -br.br_x / (br.br_r^2 + br.br_x^2)
+
+function c_ohms_law_dcopf(bs, pf, va_f, va_t)
+    return -bs * (va_f - va_t) - pf
 end
 
 function c_active_power_balance_dc(b)

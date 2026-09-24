@@ -5,16 +5,18 @@ using Test, ExaModelsPower, MadNLP, MadNLPGPU, KernelAbstractions, CUDA, CUDSS, 
 using ExaModelsCompiler
 using CNLPModels: CNLPModel
 import NLPModels
+import LinearAlgebra
 
 include("opf_tests.jl")
 include("recipe_tests.jl")
+include("scopf_tests.jl")
 
 # CI runs each backend, and the GOC3 smoke test, as a separate job, so the wall clock is
 # the slowest of them rather than their sum (they were 13.0, 14.8, 21.5 and 74.9 min in run
 # 30814411004).  EMP_TEST_SELECTION names the slice; it defaults to everything, so a plain
 # local `Pkg.test()` still runs the whole suite.
 const SELECTION = get(ENV, "EMP_TEST_SELECTION", "all")
-const VALID_SELECTIONS = ("all", "nothing", "cpu", "cuda", "goc3")
+const VALID_SELECTIONS = ("all", "nothing", "cpu", "cuda", "goc3", "aot")
 SELECTION in VALID_SELECTIONS ||
     error("EMP_TEST_SELECTION must be one of $(join(VALID_SELECTIONS, ", ")), got $(repr(SELECTION))")
 
@@ -29,8 +31,13 @@ SELECTION in ("all", "nothing") && push!(CONFIGS, nothing)
 SELECTION in ("all", "cpu") && push!(CONFIGS, CPU())
 SELECTION in ("all", "cuda") && CUDA.has_cuda_gpu() && push!(CONFIGS, CUDABackend())
 const RUN_GOC3 = SELECTION in ("all", "goc3")
+# Its own slice, like GOC3, rather than an opt-in env var: `compile_all` is red
+# at main and nothing says so, because the gate it sat behind is set by no CI
+# job. A slice shows up in the job list; an env var can be forgotten.
+const RUN_AOT = SELECTION in ("all", "aot")
 
-isempty(CONFIGS) && !RUN_GOC3 && error("EMP_TEST_SELECTION=$(SELECTION) selected no tests")
+isempty(CONFIGS) && !RUN_GOC3 && !RUN_AOT &&
+    error("EMP_TEST_SELECTION=$(SELECTION) selected no tests")
 
 test_cases = [("../data/pglib_opf_case3_lmbd.m", "case3", test_case3),
               ("../data/pglib_opf_case5_pjm.m", "case5", test_case5),
@@ -59,6 +66,16 @@ mp_stor_test_cases = [("../data/pglib_opf_case3_lmbd_mod.m", "case3", "../data/c
                         true_sol_case3_curve_stor, true_sol_case3_curve_stor_func, true_sol_case3_pregen_stor, true_sol_case3_pregen_stor_func),
                         ("../data/pglib_opf_case5_pjm_mod.m", "case5", "../data/case5_5split.Pd", "../data/case5_5split.Qd",
                         true_sol_case5_curve_stor, true_sol_case5_curve_stor_func, true_sol_case5_pregen_stor, true_sol_case5_pregen_stor_func)]
+
+# The SCOPF recipe/eager check runs over each kind of contingency list, since a
+# generator outage changes the model's STRUCTURE (its coupling row is dropped)
+# where a line outage only changes data. Indices valid in every `test_cases` case.
+scopf_recipe_contingencies = [
+    ("branch", ExaModelsPower.SCOPF_DEFAULT_CONTINGENCIES),
+    ("gen", [(type = :gen, idx = 1), (type = :gen, idx = 2)]),
+    ("gen+branch", [(type = :gen, idx = 1), (type = :branch, idx = 1),
+                    (type = :gen, idx = 2), (type = :branch, idx = 2)]),
+]
 
 static_forms = [("rect", Rect(), ACRPowerModel, test_rect_voltage),
                 ("polar", Polar(), ACPPowerModel, test_polar_voltage)]
@@ -142,17 +159,35 @@ function runtests()
                 @testset "$case, recipe == eager, $form_str" begin
                     test_recipe_equivalence(filename, form)
                 end
+                for (ctg_str, ctgs) in scopf_recipe_contingencies
+                    @testset "$case, SCOPF recipe == eager, $form_str, $ctg_str" begin
+                        test_scopf_recipe_equivalence(filename, form; contingencies = ctgs)
+                    end
+                end
                 @testset "$case, solution handles, $form_str" begin
                     test_solution_handles(filename, form)
                 end
             end
 
-            # Once for the whole suite, not once per case and formulation:
-            # `compile_all` is minutes of juliac.
-            if haskey(ENV, "EMP_TEST_AOT")
-                @testset "compile_all, then the models it returns" begin
-                    test_aot()
+            # DC is not in `static_forms` -- those entries carry a PowerModels
+            # type and a voltage test, and DC has neither -- so the DC SCOPF's
+            # recipe/eager equivalence is checked here instead. Its line outage
+            # is a different mask from the AC one (`bs`, not `c1..c8`), so it
+            # gets the same guarantee rather than inheriting the AC result.
+            for (filename, case, _) in test_cases, (ctg_str, ctgs) in scopf_recipe_contingencies
+                @testset "$case, SCOPF recipe == eager, dc, $ctg_str" begin
+                    test_scopf_recipe_equivalence(filename, DC(); contingencies = ctgs)
                 end
+            end
+
+        end
+
+        # Once for the whole suite, not once per case and formulation:
+        # `compile_all` is minutes of juliac. Backend-free, so it is its own
+        # slice rather than part of the `nothing` one.
+        if RUN_AOT
+            @testset "compile_all, then the models it returns" begin
+                test_aot()
             end
         end
 
@@ -272,6 +307,12 @@ function runtests()
                 sc_tests("../data/C3E4N00073D1_scenario_303", nothing, Float64)
             end
         end
+
+        # N-1 SCOPF: CPU :single vs CPU/GPU :twostage agreement on case9, plus
+        # the DC formulation. Sliced like everything else above — unguarded, the
+        # CPU comparison ran in all four CI jobs instead of one.
+        scopf_tests(; cpu = SELECTION in ("all", "nothing"),
+                      gpu = SELECTION in ("all", "cuda") && CUDA.has_cuda_gpu())
     end
 end
 
