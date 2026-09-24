@@ -270,7 +270,7 @@ function build_scopf_body(core, form::OPFForm, data, K, Nbus, user_callback,
 
     # Averaged over the base case and the contingencies, so the value is
     # comparable to a single-period cost.
-    @add_obj(core, o, gen_cost(g, G.pg[g.i, c]) / (K + 1) for (g, c) in data.genarray)
+    @add_obj(core, o, gen_cost(g, G.pg[g.i, 1]) for (g, c) in data.genarray)
 
     core, thermal = add_thermal_mp!(core, form, data, F)
 
@@ -371,7 +371,7 @@ function scopf_model(
     # against the same arguments the model was built from.
     return model,
            ExaModels.instantiate(vars, args...),
-           ExaModels.instantiate(cons, args...)
+           ExaModels.instantiate(cons, args...), args
 end
 
 # ── the two-stage model: arguments ──────────────────────────────────────────
@@ -555,7 +555,7 @@ end
 # The design block: the static AC OPF, built from the static model's own halves.
 # Its objective is scaled with the scenarios' so the total is the average cost.
 function add_scopf_design!(core, form, data, K, V, G, F)
-    @add_obj(core, o_base, gen_cost(g, G.pg[g.i]) / (K + 1) for g in data.gen)
+    @add_obj(core, o_base, gen_cost(g, G.pg[g.i]) for g in data.gen)
     @add_con(core, c_ref_angle, c_ref(form, V, i) for i in data.ref_buses)
     core, flowcons = add_flow_constraints!(core, form, data, V, F)
     @add_con(core, c_phase_angle_diff, c_angle(form, b, V) for b in data.branch;
@@ -567,8 +567,6 @@ end
 
 # A scenario block: the same model at `[i, k]`, every row tagged `EachScenario()`.
 function add_scopf_scenario!(core, form, data, K, Nbus, V, G, F)
-    @add_obj(core, o_ctg, gen_cost(g, G.pg[g.i, k]) / (K + 1)
-        for (g, k) in data.genarray_sc)
 
     @add_con(core, c_ref_angle_k, EachScenario(),
         c_ref(form, V, i, k) for (i, k) in data.refarray_sc)

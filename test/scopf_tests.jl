@@ -1,10 +1,12 @@
 # Minimal N-1 SCOPF regression test.
 #
-# Mirrors examples/scopf.jl on the small case9 network with its 2 single-line
-# contingencies (data/case9.Ctgs): it solves the SAME N-1 SCOPF three ways and
-# checks they all agree on the objective AND on the full base-case and
-# per-scenario generator dispatch (the two formulations are mathematically
-# identical, so a disagreement is a real bug, not a tolerance artifact):
+# Mirrors examples/scopf.jl on the small case9 network, over three contingency
+# lists (see `scopf_contingency_sets`): the 2 single-line contingencies of
+# data/case9.Ctgs, a generator outage, and a list mixing the two. For each it
+# solves the SAME N-1 SCOPF three ways and checks they all agree on the
+# objective AND on the full base-case and per-scenario generator dispatch (the
+# two formulations are mathematically identical, so a disagreement is a real
+# bug, not a tolerance artifact):
 #
 # EVERY solve here is CONDENSED, and that is load-bearing rather than incidental.
 # The Schur path is inherently condensed (RelaxEquality with bound_relax_factor =
@@ -74,6 +76,30 @@ function test_scopf_agrees(r, pg0, pgk, r_ref, pg0_ref, pgk_ref)
     @test isapprox(vec(pgk), vec(pgk_ref), atol = 1.0e-3)   # per-scenario dispatch
 end
 
+# What a generator outage means for the reference dispatch `pg` (ngen × (K+1)),
+# checked on the solution because agreement between the two models would not
+# catch a trip that both of them ignore. In the scenario of a tripped unit that
+# unit produces nothing, and every other unit sits at its base dispatch plus a
+# corrective adjustment in `[0, ratio * pmax]` — so the base dispatch of the
+# tripped unit is what the survivors' headroom can cover, which is the whole
+# point of the model. The `atol` is the solver's bound relaxation: a condensed
+# solve leaves a zero bound at ~tol rather than at zero.
+function test_scopf_gen_outages(case, contingencies, pg; ratio = 0.05, atol = 1.0e-3)
+    pmax = ExaModelsPower.parse_ac_power_data(case, Float64).pmax
+    for (k, ct) in enumerate(contingencies)
+        ct.type == :gen || continue
+        g = ct.idx
+        c = k + 1                                   # scenario 1 is the base case
+        live = setdiff(axes(pg, 1), g)
+        Δ = pg[live, c] .- pg[live, 1]
+        @test abs(pg[g, c]) < atol                                     # the unit tripped
+        @test pg[g, 1] > 10 * atol                                     # it was running before
+        @test all(Δ .>= -atol)                                         # survivors only ramp up
+        @test all(Δ .<= ratio .* pmax[live] .+ atol)                   # within their cap
+        @test sum(Δ) >= pg[g, 1] - 10 * atol                           # and cover the lost output
+    end
+end
+
 # The DC formulation of the same N-1 problem. `scopf_twostage_model` is AC-only,
 # so there is no second DC solve to check against — this checks the MECHANISM
 # the DC outage rests on instead.
@@ -83,7 +109,9 @@ end
 # `_scopf_narrow` carries on each branch row. If that zero failed to reach the
 # flow equation the branch would keep conducting, and the model would still
 # build, still converge, and still report a plausible cost — so the flow itself
-# is what is asserted.
+# is what is asserted. A generator outage needs no DC-specific mask (it is a
+# bound on `pg` in every form), but it is checked here too, for the same reason:
+# the coupling row it drops is exact to see in the constraint matrix.
 #
 # Asserted on the FORMULATION rather than on a solution. The DC model is linear, so
 # "the outaged line carries no flow" is a property of the constraint matrix: it holds
@@ -131,28 +159,75 @@ function test_scopf_dc(case, contingencies)
     @test LinearAlgebra.rank(A) == size(A, 1)   # so the least squares in `pinned_value` is meaningful
     n = model.meta.nvar
     pf(l, c) = vars.pf.offset + (c - 1) * nbranch + l
+    ngen = vars.pg.size[1]
+    pg(g, c) = vars.pg.offset + (c - 1) * ngen + g
+    lvar, uvar = Array(model.meta.lvar), Array(model.meta.uvar)
+    fixed_at_zero(j) = lvar[j] == 0 && uvar[j] == 0
+    # Is there an equality row tying `x[i]` to `x[j]`? The corrective coupling
+    # `pg[g, c] - pg[g, 1] - extra[g, c]` is the only one that ties a unit's
+    # dispatch across scenarios.
+    coupled(i, j) = any(r -> !iszero(A[r, i]) && !iszero(A[r, j]), axes(A, 1))
 
     for (k, ct) in enumerate(contingencies)
-        l = ct.idx
         c = k + 1                                 # scenario 1 is the base case
-        resid, value = pinned_value(A, b, n, pf(l, c))
-        @test resid < 1.0e-10                                            # the outage happened
-        @test abs(value) < 1.0e-10                                       # and it zeroed the flow
-        @test first(pinned_value(A, b, n, pf(l, 1))) > 1.0e-3            # not so in the base case
-        @test first(pinned_value(A, b, n, pf(l == 1 ? 2 : 1, c))) > 1.0e-3   # nor for a live line
+        if ct.type == :branch
+            l = ct.idx
+            resid, value = pinned_value(A, b, n, pf(l, c))
+            @test resid < 1.0e-10                                        # the outage happened
+            @test abs(value) < 1.0e-10                                   # and it zeroed the flow
+            @test first(pinned_value(A, b, n, pf(l, 1))) > 1.0e-3        # not so in the base case
+            @test first(pinned_value(A, b, n, pf(l == 1 ? 2 : 1, c))) > 1.0e-3   # nor for a live line
+        else
+            # A generator outage is a bound, not a mask: the tripped unit's
+            # dispatch is fixed to zero in its own scenario, and its coupling
+            # row is dropped — kept, it would drag the base dispatch to zero
+            # with it. Armed as above: the unit is free in the base case, and a
+            # live unit in the same scenario is neither fixed nor uncoupled.
+            g = ct.idx
+            live = g == 1 ? 2 : 1
+            @test fixed_at_zero(pg(g, c))                                # the unit tripped
+            @test !coupled(pg(g, c), pg(g, 1))                           # and left the base free
+            @test !fixed_at_zero(pg(g, 1))                               # not so in the base case
+            @test !fixed_at_zero(pg(live, c))                            # nor for a live unit,
+            @test coupled(pg(live, c), pg(live, 1))                      # which is still coupled
+        end
     end
+end
+
+# The contingency lists every test below runs over, as `name => list`.
+#
+# A generator outage on case9 survives only because the base case keeps the
+# tripped unit low enough for the other two to cover it within their 5%
+# corrective cap — so one generator per list: case9 has three units, and no
+# base dispatch leaves two of them that low while meeting the load (the solver
+# reports two generator outages infeasible). Gen 3 is the one the mixed list
+# trips, placed between the two lines so a generator scenario is neither first
+# nor last and the base-case column shift is exercised on both sides of it.
+function scopf_contingency_sets()
+    # Each line of case9.Ctgs is a 1-based branch index to outage (just like the example).
+    ctg_idxs = parse.(Int, filter(!isempty, strip.(readlines(joinpath(@__DIR__, "..", "data", "case9.Ctgs")))))
+    branches = [(type = :branch, idx = l) for l in ctg_idxs]
+    return [
+        "branch" => branches,
+        "gen" => [(type = :gen, idx = 1)],
+        "gen+branch" => [branches[1], (type = :gen, idx = 3), branches[2:end]...],
+    ]
 end
 
 function scopf_tests(; cpu = true, gpu = CUDA.has_cuda_gpu())
     (cpu || gpu) || return nothing
 
     case = joinpath(@__DIR__, "..", "data", "case9.m")
-    # Each line of case9.Ctgs is a 1-based branch index to outage (just like the example).
-    ctg_idxs = parse.(Int, filter(!isempty, strip.(readlines(joinpath(@__DIR__, "..", "data", "case9.Ctgs")))))
-    contingencies = [(type = :branch, idx = l) for l in ctg_idxs]
+    for (name, contingencies) in scopf_contingency_sets()
+        scopf_tests(case, name, contingencies; cpu = cpu, gpu = gpu)
+    end
+    return nothing
+end
+
+function scopf_tests(case, name, contingencies; cpu, gpu)
     K = length(contingencies)
 
-    @testset "SCOPF case9 N-1 (K=$K)" begin
+    @testset "SCOPF case9 N-1 $name (K=$K)" begin
         # CPU :single is the reference solution. The GPU comparison needs it too,
         # so it is not gated on `cpu`.
         r_single, pg_single = solve_scopf_single(case, contingencies, nothing)
@@ -160,13 +235,19 @@ function scopf_tests(; cpu = true, gpu = CUDA.has_cuda_gpu())
         pg0_ref = pg_single[:, 1]
         pgk_ref = pg_single[:, 2:end]
 
+        if any(ct -> ct.type == :gen, contingencies)
+            @testset "generator outages hold in the reference dispatch" begin
+                test_scopf_gen_outages(case, contingencies, pg_single)
+            end
+        end
+
         if cpu
             @testset "CPU two-stage matches single" begin
                 r, pg0, pgk = solve_scopf_twostage(case, contingencies, nothing)
                 test_scopf_agrees(r, pg0, pgk, r_single, pg0_ref, pgk_ref)
             end
 
-            @testset "DC outage zeroes the outaged line" begin
+            @testset "DC outage removes the outaged element" begin
                 test_scopf_dc(case, contingencies)
             end
         end

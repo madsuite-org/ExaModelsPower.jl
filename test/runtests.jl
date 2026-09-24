@@ -67,6 +67,16 @@ mp_stor_test_cases = [("../data/pglib_opf_case3_lmbd_mod.m", "case3", "../data/c
                         ("../data/pglib_opf_case5_pjm_mod.m", "case5", "../data/case5_5split.Pd", "../data/case5_5split.Qd",
                         true_sol_case5_curve_stor, true_sol_case5_curve_stor_func, true_sol_case5_pregen_stor, true_sol_case5_pregen_stor_func)]
 
+# The SCOPF recipe/eager check runs over each kind of contingency list, since a
+# generator outage changes the model's STRUCTURE (its coupling row is dropped)
+# where a line outage only changes data. Indices valid in every `test_cases` case.
+scopf_recipe_contingencies = [
+    ("branch", ExaModelsPower.SCOPF_DEFAULT_CONTINGENCIES),
+    ("gen", [(type = :gen, idx = 1), (type = :gen, idx = 2)]),
+    ("gen+branch", [(type = :gen, idx = 1), (type = :branch, idx = 1),
+                    (type = :gen, idx = 2), (type = :branch, idx = 2)]),
+]
+
 static_forms = [("rect", Rect(), ACRPowerModel, test_rect_voltage),
                 ("polar", Polar(), ACPPowerModel, test_polar_voltage)]
 
@@ -149,8 +159,10 @@ function runtests()
                 @testset "$case, recipe == eager, $form_str" begin
                     test_recipe_equivalence(filename, form)
                 end
-                @testset "$case, SCOPF recipe == eager, $form_str" begin
-                    test_scopf_recipe_equivalence(filename, form)
+                for (ctg_str, ctgs) in scopf_recipe_contingencies
+                    @testset "$case, SCOPF recipe == eager, $form_str, $ctg_str" begin
+                        test_scopf_recipe_equivalence(filename, form; contingencies = ctgs)
+                    end
                 end
                 @testset "$case, solution handles, $form_str" begin
                     test_solution_handles(filename, form)
@@ -162,9 +174,9 @@ function runtests()
             # recipe/eager equivalence is checked here instead. Its line outage
             # is a different mask from the AC one (`bs`, not `c1..c8`), so it
             # gets the same guarantee rather than inheriting the AC result.
-            for (filename, case, _) in test_cases
-                @testset "$case, SCOPF recipe == eager, dc" begin
-                    test_scopf_recipe_equivalence(filename, DC())
+            for (filename, case, _) in test_cases, (ctg_str, ctgs) in scopf_recipe_contingencies
+                @testset "$case, SCOPF recipe == eager, dc, $ctg_str" begin
+                    test_scopf_recipe_equivalence(filename, DC(); contingencies = ctgs)
                 end
             end
 
