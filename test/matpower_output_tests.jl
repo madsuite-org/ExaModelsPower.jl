@@ -100,6 +100,13 @@ function test_matpower_output(case)
             @test isapprox(bus[i][14], fd; rtol = 1e-4)
             @test bus[i][14] > 0
 
+            # The form a compiled library calls: handles and formulation read from the model.
+            m, _, _ = ac_opf_model(base_case; form)
+            from_model = tempname() * ".m"
+            write_matpower_solution(from_model, base_case, m, r.solution, r.multipliers, r.multipliers_L, r.multipliers_U;
+                                    objective = r.objective, status = string(r.status))
+            @test read(from_model, String) == read(out, String)
+
             # Rewriting a solved case replaces the result columns rather than appending more.
             again = tempname() * ".m"
             write_matpower_solution(again, out, vars, cons, r.solution, r.multipliers, r.multipliers_L, r.multipliers_U; form)
