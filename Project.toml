@@ -7,14 +7,21 @@ DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 ExaModels = "1037b233-b668-4ce9-9b63-f9f681f55dd2"
 ExaPowerIO = "14903efe-9500-4d7f-a589-7ab7e15da6de"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 
 [weakdeps]
+CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
+KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 ExaModelsCompiler = "3d1e9a26-5b74-4f0c-9a2b-7c8f4e11d3a7"
 
 [extensions]
+ExaModelsPowerCUDAExt = ["CUDACore", "ExaModels", "KernelAbstractions"]
 ExaModelsPowerExaModelsCompilerExt = "ExaModelsCompiler"
 
 [compat]
+CUDACore = "6"
+KernelAbstractions = "0.9"
+PrecompileTools = "1"
 ExaModels = "0.12"
 ExaModelsCompiler = "0.1.1"
 ExaPowerIO = "0.3"
