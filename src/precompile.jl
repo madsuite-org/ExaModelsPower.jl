@@ -18,6 +18,8 @@ function _evaluate_callbacks(m)
     NLPModels.cons!(m, x, similar(x, ncon))
     NLPModels.jac_coord!(m, x, similar(x, nnzj))
     NLPModels.hess_coord!(m, x, y, similar(x, nnzh); obj_weight = one(T))
+    NLPModels.jprod!(m, x, similar(x), similar(x, ncon))
+    NLPModels.jtprod!(m, x, similar(x, ncon), similar(x))
     return nothing
 end
 
