@@ -15,6 +15,7 @@ include("opf.jl")             # static: polar, rect, DC
 include("mpopf.jl")           # multi-period: polar, rect, DC
 include("goc3.jl")            # security-constrained, GOC3 formulation
 include("matpower_output.jl")  # solved MATPOWER case from an OPF solution
+include("precompile.jl")       # precompile workloads (CPU here, GPUs in extensions)
 
 const NAMES = filter(names(@__MODULE__; all = true)) do x
     str = string(x)
