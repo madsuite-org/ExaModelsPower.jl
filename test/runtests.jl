@@ -4,6 +4,7 @@ using Test, ExaModelsPower, MadNLP, MadNLPGPU, KernelAbstractions, CUDA, CUDSS, 
 # neither -- which took out 24 tests that call `solution` unqualified.
 using ExaModelsCompiler
 using CNLPModels: CNLPModel
+import CNLPModels
 import NLPModels
 
 include("opf_tests.jl")

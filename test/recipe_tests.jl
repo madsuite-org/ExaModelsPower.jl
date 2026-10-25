@@ -89,4 +89,23 @@ function test_aot()
                              ExaModelsPower.MPOPF_DEFAULT_CURVE;
                              form = ExaModelsPower.DC())
     @test (m3.meta.nvar, m3.meta.ncon) == (ref3.meta.nvar, ref3.meta.ncon)
+
+    # The compiled MATPOWER writer writes what `write_matpower_solution` does.
+    lib = CNLPModels.load(r.libpath)
+    dl(s) = CNLPModels.Libdl.dlsym(lib.handle, s)
+    for (p, form) in (("acp", Polar()), ("acr", Rect()))
+        @test ccall(dl(Symbol(p, "_nwriters")), Cint, ()) == 1
+        m, v, c = opf_model(case; form)
+        res = madnlp(m; print_level = MadNLP.ERROR)
+        ref = tempname() * ".m"
+        write_matpower_solution(ref, case, v, c, res.solution, res.multipliers, res.multipliers_L, res.multipliers_U;
+                                form, objective = res.objective, status = "solved")
+        id = ccall(dl(Symbol(p, "_new_str")), Cint, (Cstring,), case)
+        out = tempname() * ".m"
+        @test ccall(dl(Symbol(p, "_write_matpower")), Cint,
+                    (Cint, Cstring, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cstring),
+                    id, out, res.solution, res.multipliers, res.multipliers_L, res.multipliers_U,
+                    res.objective, "solved") == 0
+        @test read(out, String) == read(ref, String)
+    end
 end

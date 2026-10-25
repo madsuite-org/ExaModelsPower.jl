@@ -27,15 +27,35 @@ else in the file is kept as it was, and `objective` and `status` go into a
 comment at the top.
 """
 function write_matpower_solution(out::AbstractString, case_file::AbstractString, vars, cons, x, y, zl, zu; kwargs...)
-    open(io -> write_matpower_solution(io, case_file, vars, cons, x, y, zl, zu; kwargs...), out, "w")
+    # Not `open(f, out, "w")`: it splats its arguments, which `--trim=safe` refuses.
+    io = open(out, "w")
+    try
+        write_matpower_solution(io, case_file, vars, cons, x, y, zl, zu; kwargs...)
+    finally
+        close(io)
+    end
     return out
+end
+
+"""
+    write_matpower_solution(out, case_file, model, x, y, zl, zu; objective = NaN, status = "")
+
+The same, for a `model` built by `opf_model` (polar or rectangular): the
+variable and constraint handles and the formulation are read from the model.
+This is the form a compiled library carries; see `compile_all`.
+"""
+function write_matpower_solution(out::AbstractString, case_file::AbstractString, model::ExaModels.ExaModel,
+                                 x, y, zl, zu; objective = NaN, status::AbstractString = "")
+    r = model.refs
+    form = hasproperty(r, :vm) ? Polar() : Rect()
+    return write_matpower_solution(out, case_file, r, r, x, y, zl, zu; form, objective, status)
 end
 
 function write_matpower_solution(
     io::IO, case_file::AbstractString, vars, cons, x, y, zl, zu;
     form::Union{Polar,Rect} = Polar(), objective = NaN, status::AbstractString = "",
 )
-    lines = readlines(case_file)
+    lines = _mp_readlines(_mp_case_path(case_file))
     base = _mp_base_mva(lines)
     blk(v, a) = view(a, (v.offset + 1):(v.offset + ExaModels.total(v.size)))
     polar = form isa Polar
@@ -140,6 +160,22 @@ function write_matpower_solution(
         println(io, "\t", join(out, '\t'), ";", isempty(comment) ? "" : "\t" * comment)
     end
     return io
+end
+
+# A name that is not a file is a PGLib case, as `opf_args` reads it.
+_mp_case_path(f) = isfile(f) ? f : joinpath(ExaPowerIO.get_path(:pglib), f)
+
+# `readlines` without `eachline`, whose `ondone` closure `--trim=safe` cannot resolve.
+function _mp_readlines(path)
+    io = open(path, "r")
+    text = try
+        read(io, String)
+    finally
+        close(io)
+    end
+    lines = [chopsuffix(l, "\r") for l in split(text, '\n')]
+    isempty(lines) || isempty(last(lines)) && pop!(lines)
+    return lines
 end
 
 # mpc.baseMVA = 100;
