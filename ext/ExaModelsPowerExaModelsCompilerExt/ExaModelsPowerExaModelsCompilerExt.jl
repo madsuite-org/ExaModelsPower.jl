@@ -46,6 +46,10 @@ load curve, which is why they are per-`N` in a way the static ones are not.
 
 `path` defaults to the shared depot entry `"@emp"`.
 
+The static models (`acp`, `acr`, `dcp`) also carry [`write_matpower_solution`](@ref)
+as the writer `matpower`: `acp_write_matpower(id, out, x, y, zl, zu, objective, status)`
+writes a solved MATPOWER case for the case file the instance was built from.
+
 ```julia
 compile_all(ExaModelsPower)                        # all six, into "@emp"
 compile_all(ExaModelsPower; only = [:acp, :dcp])
@@ -63,7 +67,10 @@ function ExaModelsCompiler.compile_all(
 )
     models = _emp_models(case; T = T, N = N)
     chosen = ExaModelsCompiler.select(models; only = only, exclude = exclude)
-    return ExaModelsCompiler.compile_library(path, chosen...; kwargs...)
+    names = first.(chosen)
+    writers = [name => (:matpower => ExaModelsPower.write_matpower_solution,)
+               for name in (:acp, :acr, :dcp) if name in names]
+    return ExaModelsCompiler.compile_library(path, chosen...; writers, kwargs...)
 end
 
 end # module
