@@ -16,7 +16,7 @@ ExaModelsPowerExaModelsCompilerExt = "ExaModelsCompiler"
 
 [compat]
 ExaModels = "0.12"
-ExaModelsCompiler = "0.1"
+ExaModelsCompiler = "0.1.1"
 ExaPowerIO = "0.3"
 JSON = "0.21"
 julia = "1.11"

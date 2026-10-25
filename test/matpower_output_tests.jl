@@ -60,7 +60,7 @@ function test_matpower_output(case)
     # One generator and one branch out of service, so the zero rows are exercised.
     base_case = mp_edit(mp_edit(case, "gen", 5, 8, _ -> 0), "branch", 5, 11, _ -> 0)
     files = Dict{String,String}()
-    for (form_str, form) in (("polar", Polar()), ("rect", Rect()))
+    for (form_str, form) in (("polar", Polar()), ("rect", Rect()), ("dc", DC()))
         @testset "matpower output, $form_str" begin
             out, vars, cons, r = mp_solved(base_case, form)
             files[form_str] = out

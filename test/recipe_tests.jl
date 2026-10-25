@@ -93,7 +93,7 @@ function test_aot()
     # The compiled MATPOWER writer writes what `write_matpower_solution` does.
     lib = CNLPModels.load(r.libpath)
     dl(s) = CNLPModels.Libdl.dlsym(lib.handle, s)
-    for (p, form) in (("acp", Polar()), ("acr", Rect()))
+    for (p, form) in (("acp", Polar()), ("acr", Rect()), ("dcp", DC()))
         @test ccall(dl(Symbol(p, "_nwriters")), Cint, ()) == 1
         m, v, c = opf_model(case; form)
         res = madnlp(m; print_level = MadNLP.ERROR)
