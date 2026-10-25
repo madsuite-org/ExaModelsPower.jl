@@ -15,14 +15,8 @@ ExaModelsCompiler = "3d1e9a26-5b74-4f0c-9a2b-7c8f4e11d3a7"
 ExaModelsPowerExaModelsCompilerExt = "ExaModelsCompiler"
 
 [compat]
-ExaModels = "0.11"
+ExaModels = "0.12"
+ExaModelsCompiler = "0.1"
 ExaPowerIO = "0.3"
 JSON = "0.21"
 julia = "1.11"
-
-[sources]
-# Pinned to a SHA, not `rev = "main"`. A branch name is not reproducible under
-# julia-actions/cache: the job restores ~/.julia from an earlier run and reuses
-# that clone without re-fetching, so `main` can resolve to whatever that cache
-# happens to hold. Comes out when ExaModels registers a release.
-ExaModels = {url = "https://github.com/madsuite-org/ExaModels.jl.git", rev = "a9fbf9ccb5afcfb973bc09ed10d7e6b5f24e07a3"}

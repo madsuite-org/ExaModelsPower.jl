@@ -14,5 +14,4 @@ CUDA = "6"
 ExaModels = "0.11"
 
 [sources]
-ExaModels = {url = "https://github.com/madsuite-org/ExaModels.jl.git", rev = "6e504938a021599eaefd1e48a3b8818c151cfb3b"}
 ExaModelsPower = {path = ".."}
