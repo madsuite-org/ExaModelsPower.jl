@@ -17,5 +17,3 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [sources]
 CNLPModels = {rev = "master", url = "https://github.com/madsuite-org/CNLPModels.jl"}
-ExaModels = {rev = "a9fbf9ccb5afcfb973bc09ed10d7e6b5f24e07a3", url = "https://github.com/madsuite-org/ExaModels.jl"}
-ExaModelsCompiler = {rev = "a9fbf9ccb5afcfb973bc09ed10d7e6b5f24e07a3", subdir = "ExaModelsCompiler", url = "https://github.com/madsuite-org/ExaModels.jl"}
