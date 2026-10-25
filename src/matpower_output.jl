@@ -55,8 +55,12 @@ function write_matpower_solution(out::AbstractString, case_file::AbstractString,
     return write_matpower_solution(out, case_file, r, r, x, y, zl, zu; form = _mp_form(r), objective, status)
 end
 
-# The formulation a model was built with, from the blocks it has.
-_mp_form(r::NamedTuple{N}) where {N} = :vm in N ? Polar() : :vr in N ? Rect() : DC()
+# The formulation a model was built with, by dispatch on its voltage block:
+# `vm` (polar), `vr` (rectangular), or neither (DC).
+_mp_form(r::NamedTuple) = _mp_form(Val(hasfield(typeof(r), :vm)), Val(hasfield(typeof(r), :vr)))
+_mp_form(::Val{true}, ::Val{false}) = Polar()
+_mp_form(::Val{false}, ::Val{true}) = Rect()
+_mp_form(::Val{false}, ::Val{false}) = DC()
 
 function write_matpower_solution(
     io::IO, case_file::AbstractString, vars, cons, x, y, zl, zu;
@@ -141,20 +145,7 @@ _mp_blk(v, a) = view(a, (v.offset + 1):(v.offset + ExaModels.total(v.size)))
 # angles (radians).
 function _mp_columns(form::Union{Polar,Rect}, vars, cons, x, y, zl, zu, base)
     blk = _mp_blk
-    if form isa Polar
-        vm = collect(blk(vars.vm, x))
-        va = collect(blk(vars.va, x))
-        mu_vmax = collect(blk(vars.vm, zu))
-        mu_vmin = collect(blk(vars.vm, zl))
-    else
-        vr, vim = blk(vars.vr, x), blk(vars.vim, x)
-        vm = hypot.(vr, vim)
-        va = atan.(vim, vr)
-        # vmin² ≤ vr² + vim² ≤ vmax²: d/dvm of the squared bound is 2 vm.
-        lv = blk(cons.c_voltage_magnitude, y)
-        mu_vmax = max.(lv, 0) .* 2 .* vm
-        mu_vmin = max.(.-lv, 0) .* 2 .* vm
-    end
+    vm, va, mu_vmax, mu_vmin = _mp_voltages(form, vars, cons, x, y, zl, zu)
     lam_p = blk(cons.c_active_power_balance, y) ./ base
     lam_q = blk(cons.c_reactive_power_balance, y) ./ base
 
@@ -178,6 +169,22 @@ function _mp_columns(form::Union{Polar,Rect}, vars, cons, x, y, zl, zu, base)
         mu_st = max.(lst, 0) .* 2 .* hypot.(p[t], q[t]) ./ base,
         mu_angmin = max.(.-lang, 0) .* degree, mu_angmax = max.(lang, 0) .* degree,
     )
+end
+
+# Voltage magnitude and angle per bus, and the multipliers of the magnitude bounds.
+function _mp_voltages(::Polar, vars, cons, x, y, zl, zu)
+    blk = _mp_blk
+    return collect(blk(vars.vm, x)), collect(blk(vars.va, x)),
+           collect(blk(vars.vm, zu)), collect(blk(vars.vm, zl))
+end
+
+function _mp_voltages(::Rect, vars, cons, x, y, zl, zu)
+    blk = _mp_blk
+    vr, vim = blk(vars.vr, x), blk(vars.vim, x)
+    vm = hypot.(vr, vim)
+    # vmin² ≤ vr² + vim² ≤ vmax²: d/dvm of the squared bound is 2 vm.
+    lv = blk(cons.c_voltage_magnitude, y)
+    return vm, atan.(vim, vr), max.(lv, 0) .* 2 .* vm, max.(.-lv, 0) .* 2 .* vm
 end
 
 function _mp_columns(::DC, vars, cons, x, y, zl, zu, base)
