@@ -374,7 +374,8 @@ definition rather than two.
   `.raw`, PowerModels JSON, …), a bare PGLib-OPF name such as
   `"pglib_opf_case118_ieee.m"` (fetched once into the PGLib-OPF artifact), or a
   network already parsed with PowerIO (`PowerIO.parse(BalancedNetwork, path;
-  format)`, possibly edited with `PowerIO.apply_updates!`). Isolated buses and
+  format)`, or the module `PowerIO.parse(PioModule{BalancedNetwork}, path)`
+  after `PowerIO.apply_updates!`). Isolated buses and
   out-of-service generators, branches and storage are left out of the model.
 - `backend`: The solver backend to use. Default if nothing.
 - `T`: The numeric type to use (default is `Float64`).
