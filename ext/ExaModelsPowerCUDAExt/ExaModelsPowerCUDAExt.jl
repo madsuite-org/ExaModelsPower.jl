@@ -4,12 +4,12 @@
 module ExaModelsPowerCUDAExt
 
 import ExaModelsPower
-import CUDACore
+import CUDA
 import PrecompileTools
 
 PrecompileTools.@compile_workload begin
-    if CUDACore.functional()
-        ExaModelsPower._precompile_workload(CUDACore.CUDAKernels.CUDABackend())
+    if CUDA.functional()
+        ExaModelsPower._precompile_workload(CUDA.CUDABackend())
     end
 end
 
