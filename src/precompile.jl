@@ -111,9 +111,12 @@ PrecompileTools.@compile_workload begin
     # Resolving a case by name (`ac_opf_model("pglib_opf_case118_ieee.m")`) looks up
     # ExaPowerIO's lazy PGLib artifact. Compile that lookup without running it, since
     # running it may download the artifact.
+    # Both are internals of Artifacts; `__artifact_str` exists only on Julia 1.12 and
+    # newer, so each is looked up rather than named.
     LA = ExaPowerIO.LazyArtifacts
-    for f in (LA.Artifacts.__artifact_str, LA.Artifacts._artifact_str)
-        precompile(f, (Module, String, SubString{String}, String, Dict{String,Any},
-                       Base.SHA1, Base.BinaryPlatforms.Platform, Val{LA}))
+    for name in (:__artifact_str, :_artifact_str)
+        isdefined(LA.Artifacts, name) || continue
+        precompile(getfield(LA.Artifacts, name), (Module, String, SubString{String}, String,
+                   Dict{String,Any}, Base.SHA1, Base.BinaryPlatforms.Platform, Val{LA}))
     end
 end
