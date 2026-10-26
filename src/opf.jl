@@ -97,7 +97,7 @@ args = opf_args("pglib_opf_case118_ieee.m"; start = (vm = d -> d.vm0, va = d -> 
 model = ExaModel(ac_opf_recipe()[1], args...)
 ```
 """
-opf_args(filename; T = Float64, backend = nothing, start = (;)) =
+opf_args(filename; T::Type{TT} = Float64, backend = nothing, start = (;)) where {TT} =
     opf_args(filename, T, backend, start)
 
 # The positional method is the one a compiled library calls: `::Type{T}` makes
@@ -347,10 +347,14 @@ The same recipe instantiates at any case; it is not consumed by the first use.
 """
 function opf_recipe(;
     backend = nothing,
-    T = Float64,
+    T::Type{TT} = Float64,
     form::OPFForm = Polar(),
-    user_callback = dummy_extension,
-)
+    user_callback::UC = dummy_extension,
+) where {TT, UC}
+    # `T` and `user_callback` are typed by static parameters so that the keyword body is
+    # specialized on them: Julia does not specialize on a `Type` or a function that is
+    # only passed through, and the body compiled for an abstract `T` is both slower to
+    # infer and open to invalidation by packages loaded later. Same in `opf_model`.
     core, data = ExaCore(T; backend = backend, nargs = Val(1))
     return build_opf(core, form, data, user_callback, T)
 end
@@ -383,15 +387,16 @@ A vector `(model, variables, constraints)`:
 function opf_model(
     filename;
     backend = nothing,
-    T = Float64,
+    T::Type{TT} = Float64,
     form::OPFForm = Polar(),
-    user_callback = dummy_extension,
+    user_callback::UC = dummy_extension,
     start = (;),
     kwargs...,
-)
+) where {TT, UC}
     core, vars, cons =
         opf_recipe(; backend = backend, T = T, form = form, user_callback = user_callback)
-    args = opf_args(filename; T = T, backend = backend, start = start)
+    # positional: a keyword `T` would arrive as a `DataType` and lose its value
+    args = opf_args(filename, T, backend, start)
     model = ExaModel(core, args...; prod = true, kwargs...)
     # The handles come out of the RECIPE, so their offsets are ArgNode
     # expressions; `solution(result, v)` cannot index with those. Resolve them

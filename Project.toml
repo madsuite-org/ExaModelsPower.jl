@@ -1,6 +1,6 @@
 name = "ExaModelsPower"
 uuid = "2fff4b78-0b6c-428d-bac8-85ccea8c4bdf"
-version = "0.4.2"
+version = "0.4.3"
 
 [deps]
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
@@ -11,7 +11,7 @@ PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 
 [weakdeps]
 AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
-CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 Metal = "dde4c033-4e86-420c-a63e-0dd931031962"
 oneAPI = "8f75cd03-7ff8-4ecb-9b8f-daf728133b1b"
@@ -19,7 +19,7 @@ ExaModelsCompiler = "3d1e9a26-5b74-4f0c-9a2b-7c8f4e11d3a7"
 
 [extensions]
 ExaModelsPowerAMDGPUExt = ["AMDGPU", "ExaModels", "KernelAbstractions"]
-ExaModelsPowerCUDAExt = ["CUDACore", "ExaModels", "KernelAbstractions"]
+ExaModelsPowerCUDAExt = ["CUDA", "ExaModels", "KernelAbstractions"]
 ExaModelsPowerKernelAbstractionsExt = ["ExaModels", "KernelAbstractions"]
 ExaModelsPowerMetalExt = ["Metal", "ExaModels", "KernelAbstractions"]
 ExaModelsPoweroneAPIExt = ["oneAPI", "ExaModels", "KernelAbstractions"]
@@ -27,12 +27,12 @@ ExaModelsPowerExaModelsCompilerExt = "ExaModelsCompiler"
 
 [compat]
 AMDGPU = "2"
-CUDACore = "6"
+CUDA = "6"
 KernelAbstractions = "0.9"
 Metal = "1.9"
 oneAPI = "2"
 PrecompileTools = "1"
-ExaModels = "0.12"
+ExaModels = "0.12, 0.13"
 ExaModelsCompiler = "0.1.1"
 ExaPowerIO = "0.3"
 JSON = "0.21"
