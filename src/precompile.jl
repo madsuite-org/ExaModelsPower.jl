@@ -75,6 +75,10 @@ Build and evaluate the OPF models on `backend`, with the keyword combinations th
 `Float32`).
 """
 function _precompile_workload(backend; T = nothing)
+    # Every model starts from a parse, which needs PowerIO's native library, a lazy
+    # artifact: on a first install this fetches it. Offline, the workload is skipped
+    # rather than failing the precompilation.
+    PowerIO.library_available() || return nothing
     case = _workload_case()
     kw = backend === nothing ? (;) : (; backend)
     kw = T === nothing ? kw : (; kw..., T)
@@ -109,11 +113,11 @@ end
 PrecompileTools.@compile_workload begin
     _precompile_workload(nothing)
     # Resolving a case by name (`ac_opf_model("pglib_opf_case118_ieee.m")`) looks up
-    # ExaPowerIO's lazy PGLib artifact. Compile that lookup without running it, since
-    # running it may download the artifact.
+    # the lazy PGLib artifact. Compile that lookup without running it, since running it
+    # may download the artifact.
     # Both are internals of Artifacts; `__artifact_str` exists only on Julia 1.12 and
     # newer, so each is looked up rather than named.
-    LA = ExaPowerIO.LazyArtifacts
+    LA = LazyArtifacts
     for name in (:__artifact_str, :_artifact_str)
         isdefined(LA.Artifacts, name) || continue
         precompile(getfield(LA.Artifacts, name), (Module, String, SubString{String}, String,

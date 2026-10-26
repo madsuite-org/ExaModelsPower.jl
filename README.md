@@ -10,7 +10,7 @@ ExaModelsPower.jl is an optimal power flow models using ExaModels.jl
 ## Usage
 ### Static optimal power flow
 ```julia
-using ExaModelsPower, MadNLP, MadNLPGPU, CUDA, ExaModels, GOC3Benchmark, JSON
+using ExaModelsPower, MadNLP, MadNLPGPU, CUDA, ExaModels
 
 
 model, vars, cons = ac_opf_model(
@@ -28,6 +28,21 @@ model, vars, cons = dcopf_model(
 )
 result = madnlp(model; tol=1e-6)
 ```
+
+### Case files
+Cases are read with [PowerIO.jl](https://github.com/eigenergy/PowerIO.jl), so a case can be
+any single-phase network it reads: MATPOWER `.m`, PSS/E `.raw`/`.rawx`, PowerModels JSON,
+pandapower JSON, PowerWorld `.aux`, CGMES, XIIDM, and more. A bare PGLib-OPF name such as
+`"pglib_opf_case118_ieee.m"` (or `"api/pglib_opf_case118_ieee__api.m"`) is fetched once from
+PGLib-OPF v23.07. A network already parsed with PowerIO works as well, for instance to name
+the format or to edit the case first:
+```julia
+using PowerIO
+case = PowerIO.parse(BalancedNetwork, "grid.raw"; format = "psse")
+model, vars, cons = ac_opf_model(case)
+```
+Isolated buses and out-of-service generators, branches and storage are left out of the
+model; a MATPOWER `rateA` of 0 (no limit) becomes the limit the voltage and angle bounds imply.
 
 ### Security-constrained optimal power flow
 ```julia
@@ -106,6 +121,9 @@ result = madnlp(model; tol=1e-6)
 #Modified datasets that can be used for testing
 #https://github.com/mit-shin-group/multi-period-opf-data
 ```
+The `.Pd` and `.Qd` files hold loads in MW, one row per bus of the case (isolated buses
+excluded) in file order and one column per period. A demand curve scales the case's loads;
+bus shunts keep their value.
 
 ### User extension modeling
 ExaModelsPower also supports the user arbitrarily extending any prebuilt models

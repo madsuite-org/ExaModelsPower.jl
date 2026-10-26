@@ -24,7 +24,7 @@ Finally, we install ExaModels to allow solved models to be unpacked.
 using ExaModels
 ````
 
-We will begin by constructing and solving a static OPF using the function opf_model. For the static OPF, the only input required is the filename for the OPF matpower file. The file does not need to be locally installed, and it will be automatically downloaded from __[power-grid-library](https://github.com/power-grid-lib/pglib-opf)__ if the file is not found in the user's data folder. If keywords are not specified, the numerical type will default to Float64, the backend will default to nothing (used on CPU) and the form will default to polar coordinates.
+We will begin by constructing and solving a static OPF using the function opf_model. For the static OPF, the only input required is the case: a path to any network file [PowerIO.jl](https://github.com/eigenergy/PowerIO.jl) reads (MATPOWER, PSS/E, PowerModels JSON, ...), or the name of a __[power-grid-library](https://github.com/power-grid-lib/pglib-opf)__ case, which is downloaded once and need not be installed locally. If keywords are not specified, the numerical type will default to Float64, the backend will default to nothing (used on CPU) and the form will default to polar coordinates.
 
 ````julia
 model, vars, cons = ac_opf_model(

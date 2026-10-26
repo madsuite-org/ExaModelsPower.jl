@@ -8,7 +8,7 @@ module ExaModelsPowerExaModelsCompilerExt
 # provider: an OPF model is not instantiated at a SIZE, it is instantiated at a
 # CASE. Every model here carries an argument function — `opf_args` for the
 # static formulations, `mpopf_args_default` for multi-period — which the
-# compiled library calls with a matpower path, so what crosses the C boundary
+# compiled library calls with a case path, so what crosses the C boundary
 # is a string rather than an integer. `sizes` has nothing to mean here;
 # `cases` does.
 
@@ -39,9 +39,13 @@ end
 
 Compile this package's models into one shared library.
 
-`case` is the matpower file the recipes are built against — its TYPES are what
+`case` is the case file the recipes are built against — its TYPES are what
 the compiler needs, not its values, so the resulting library instantiates any
-case at run time from a path. The multi-period models additionally bake `N` and the
+case at run time from a path, in any format PowerIO reads. The library reads
+cases through PowerIO's native library, which it finds the way PowerIO does (the
+`powerio_capi` artifact, or `POWERIO_CAPI`). A bare PGLib-OPF name resolves in
+the PGLib-OPF artifact, which a compiled library cannot download: use the name
+once from Julia first. The multi-period models additionally bake `N` and the
 load curve, which is why they are per-`N` in a way the static ones are not.
 
 `path` defaults to the shared depot entry `"@emp"`.
