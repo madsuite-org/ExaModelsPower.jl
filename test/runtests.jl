@@ -6,6 +6,7 @@ using ExaModelsCompiler
 using CNLPModels: CNLPModel
 import CNLPModels
 import NLPModels
+import JSON
 
 include("opf_tests.jl")
 include("recipe_tests.jl")

@@ -7,6 +7,7 @@ DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 ExaModels = "1037b233-b668-4ce9-9b63-f9f681f55dd2"
 ExaPowerIO = "14903efe-9500-4d7f-a589-7ab7e15da6de"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+PowerIO = "05ed8b54-f668-4096-9d0d-e8c3dd9dc169"
 PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 
 [weakdeps]
@@ -36,4 +37,5 @@ ExaModels = "0.12, 0.13"
 ExaModelsCompiler = "0.1.1"
 ExaPowerIO = "0.3"
 JSON = "0.21"
+PowerIO = "0.11.6"
 julia = "1.11"
