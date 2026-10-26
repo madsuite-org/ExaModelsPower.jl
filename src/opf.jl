@@ -79,7 +79,7 @@ _resolve_start(f, data) = f(data)
 _resolve_start(v::Union{Number,AbstractVector,Base.Generator}, data) = v
 
 """
-    opf_args(filename; T = Float64, backend = nothing, start = (;))
+    opf_args(case; T = Float64, backend = nothing, start = (;))
         -> (data,)
 
 Return the argument tuple that closes [`opf_recipe`](@ref) — the parsed case
@@ -88,7 +88,7 @@ together with everything the recipe cannot compute from a placeholder.
 `start` overrides any of the starting points `va`, `vm`, `vr`, `vim`, `pg`,
 `qg`, `p`, `q`. Each entry may be a scalar, a vector, a `Base.Generator`, or a
 function of the parsed data (`d -> d.vm0` to warm-start from the case's own
-operating point). Defaults are a flat `1.0` voltage magnitude and zero
+operating point; `d.va0` is in radians). Defaults are a flat `1.0` voltage magnitude and zero
 elsewhere, which is what this model used before the recipe split.
 
 # Example
@@ -97,14 +97,14 @@ args = opf_args("pglib_opf_case118_ieee.m"; start = (vm = d -> d.vm0, va = d -> 
 model = ExaModel(ac_opf_recipe()[1], args...)
 ```
 """
-opf_args(filename; T::Type{TT} = Float64, backend = nothing, start = (;)) where {TT} =
-    opf_args(filename, T, backend, start)
+opf_args(case; T::Type{TT} = Float64, backend = nothing, start = (;)) where {TT} =
+    opf_args(case, T, backend, start)
 
 # The positional method is the one a compiled library calls: `::Type{T}` makes
 # `T` a static parameter, where the keyword form leaves it a `Type`-typed value
 # that nothing downstream can specialize on.
-function opf_args(filename, ::Type{T}, backend = nothing, start = (;)) where {T}
-    p = parse_ac_power_data(filename, T)
+function opf_args(case, ::Type{T}, backend = nothing, start = (;)) where {T}
+    p = parse_ac_power_data(case, T)
     s = merge(_default_start(T), NamedTuple(start))
     bus, gen, arc, branch = p.bus, p.gen, p.arc, p.branch
     nbus, ngen, narc, nbranch = length(bus), length(gen), length(arc), length(branch)
@@ -360,7 +360,7 @@ function opf_recipe(;
 end
 
 """
-    ac_opf_model(filename; backend, T, form, user_callback, start, kwargs...)
+    ac_opf_model(case; backend, T, form, user_callback, start, kwargs...)
 
 Return `ExaModel`, variables, and constraints for a static AC Optimal Power Flow
 (ACOPF) problem from the given file.
@@ -370,7 +370,13 @@ model solved here and the model compiled by `ExaModelsC` are built from one
 definition rather than two.
 
 # Arguments
-- `filename::String`: Path to the data file.
+- `case`: the network — a path to any file PowerIO reads (MATPOWER `.m`, PSS/E
+  `.raw`, PowerModels JSON, …), a bare PGLib-OPF name such as
+  `"pglib_opf_case118_ieee.m"` (fetched once into the PGLib-OPF artifact), or a
+  network already parsed with PowerIO (`PowerIO.parse(BalancedNetwork, path;
+  format)`, or the module `PowerIO.parse(PioModule{BalancedNetwork}, path)`
+  after `PowerIO.apply_updates!`). Isolated buses and
+  out-of-service generators, branches and storage are left out of the model.
 - `backend`: The solver backend to use. Default if nothing.
 - `T`: The numeric type to use (default is `Float64`).
 - `form`: the formulation, an [`OPFForm`](@ref) instance — `Polar()` (default), `Rect()` or `DC()`.
@@ -385,7 +391,7 @@ A vector `(model, variables, constraints)`:
 - `constraints`: NamedTuple of model constraints.
 """
 function opf_model(
-    filename;
+    case;
     backend = nothing,
     T::Type{TT} = Float64,
     form::OPFForm = Polar(),
@@ -396,7 +402,7 @@ function opf_model(
     core, vars, cons =
         opf_recipe(; backend = backend, T = T, form = form, user_callback = user_callback)
     # positional: a keyword `T` would arrive as a `DataType` and lose its value
-    args = opf_args(filename, T, backend, start)
+    args = opf_args(case, T, backend, start)
     model = ExaModel(core, args...; prod = true, kwargs...)
     # The handles come out of the RECIPE, so their offsets are ArgNode
     # expressions; `solution(result, v)` cannot index with those. Resolve them
@@ -465,7 +471,7 @@ add_extras!(core, ::DC, d, V, F) = (core, (;))
 # DC.
 
 dcopf_recipe(; kwargs...) = opf_recipe(; form = DC(), kwargs...)
-dcopf_model(filename; kwargs...) = opf_model(filename; form = DC(), kwargs...)
+dcopf_model(case; kwargs...) = opf_model(case; form = DC(), kwargs...)
 
 # ── The old names ───────────────────────────────────────────────────────────
 #
@@ -476,5 +482,5 @@ dcopf_model(filename; kwargs...) = opf_model(filename; form = DC(), kwargs...)
 # is the spelling that says it in the name.
 
 ac_opf_recipe(; form = Polar(), kwargs...) = opf_recipe(; form = form, kwargs...)
-ac_opf_model(filename; form = Polar(), kwargs...) = opf_model(filename; form = form, kwargs...)
-ac_opf_args(filename; kwargs...) = opf_args(filename; kwargs...)
+ac_opf_model(case; form = Polar(), kwargs...) = opf_model(case; form = form, kwargs...)
+ac_opf_args(case; kwargs...) = opf_args(case; kwargs...)

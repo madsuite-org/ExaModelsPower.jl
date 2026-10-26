@@ -61,26 +61,38 @@ function test_solution_handles(filename, form)
     @test total == m.meta.nvar
 end
 
-# Compiling costs ~90 s per form and needs ExaModelsC, which is not a test
-# dependency, so it is opt-in: EMP_TEST_AOT=1.
-# Compiling is minutes, so this is opt-in and runs ONCE for the whole suite
+# Compiling costs ~90 s per form, so it is opt-in (EMP_TEST_SELECTION=aot, or
+# EMP_TEST_AOT=1 alongside another slice) and runs ONCE for the whole suite
 # rather than once per case and formulation: the plain default call a user
 # makes, then a few properties of what comes back. `obj`/`cons` are checked
 # away from x0, so a library that returned constants -- or that ignored the
 # case it was handed -- would fail rather than agree trivially.
 function test_aot()
-    r = compile_all(ExaModelsPower)
+    # Into a directory of its own: the default `"@emp"` is the CNLPModels search
+    # path, which needs CNLPMODELS_PATH set.
+    r = compile_all(ExaModelsPower; path = joinpath(mktempdir(), "emp"))
     @test isfile(r.libpath)
     @test Set(Symbol.(r.prefixes)) == Set((:acp, :acr, :dcp, :mpacp, :mpacr, :mpdcp))
 
     case = "pglib_opf_case14_ieee.m"
-    m = CNLPModel(r.libpath, :acp, case)
+    # Built first: resolving a PGLib name in Julia fetches the PGLib-OPF
+    # artifact, which the compiled library looks up but cannot download.
     ref, _, _ = ac_opf_model(case)
+    m = CNLPModel(r.libpath, :acp, case)
     @test (m.meta.nvar, m.meta.ncon) == (ref.meta.nvar, ref.meta.ncon)
     @test collect(m.meta.x0) == collect(ref.meta.x0)
     x = [0.9 + 0.02sin(i) for i = 1:m.meta.nvar]
     @test NLPModels.obj(m, x) == NLPModels.obj(ref, x)
     @test collect(NLPModels.cons(m, x)) == collect(NLPModels.cons(ref, x))
+
+    # A case by path, in the rectangular form.
+    local_case = joinpath(@__DIR__, "..", "data", "pglib_opf_case5_pjm.m")
+    m5 = CNLPModel(r.libpath, :acr, local_case)
+    ref5, _, _ = ac_opf_model(local_case; form = Rect())
+    @test (m5.meta.nvar, m5.meta.ncon) == (ref5.meta.nvar, ref5.meta.ncon)
+    x5 = [0.9 + 0.02sin(i) for i = 1:m5.meta.nvar]
+    @test NLPModels.obj(m5, x5) == NLPModels.obj(ref5, x5)
+    @test collect(NLPModels.cons(m5, x5)) == collect(NLPModels.cons(ref5, x5))
 
     # The property the recipe rewrite exists for: a network size the library
     # was never compiled against.

@@ -2,11 +2,12 @@ module ExaModelsPower
 
 import ExaModels: ExaModels, ExaCore, @add_var, @add_par, @add_con, @add_obj, @add_con!, ExaModel, convert_array, solution
 using DelimitedFiles
-using ExaPowerIO
 using JSON
+using LazyArtifacts
+import PowerIO
 
 # Parsers and data stay separate from the models that consume them.
-include("parser.jl")          # matpower -> the tables every model is built from
+include("parser.jl")          # a case, through PowerIO -> the tables every model is built from
 include("constraint.jl")      # the algebraic expressions, shared by all three
 include("goc3_parser.jl")     # GOC3-specific parsing
 include("sc_parser.jl")       #   "

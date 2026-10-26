@@ -10,13 +10,15 @@ import NLPModels
 include("opf_tests.jl")
 include("recipe_tests.jl")
 include("matpower_output_tests.jl")
+include("parser_tests.jl")
 
-# CI runs each backend, and the GOC3 smoke test, as a separate job, so the wall clock is
-# the slowest of them rather than their sum (they were 13.0, 14.8, 21.5 and 74.9 min in run
-# 30814411004).  EMP_TEST_SELECTION names the slice; it defaults to everything, so a plain
-# local `Pkg.test()` still runs the whole suite.
+# CI runs each backend, the GOC3 smoke test, and ahead-of-time compilation as separate
+# jobs, so the wall clock is the slowest of them rather than their sum (the first four
+# were 13.0, 14.8, 21.5 and 74.9 min in run 30814411004).  EMP_TEST_SELECTION names the
+# slice; it defaults to everything but compilation, so a plain local `Pkg.test()` still
+# runs the whole suite, and EMP_TEST_AOT adds compilation to any slice.
 const SELECTION = get(ENV, "EMP_TEST_SELECTION", "all")
-const VALID_SELECTIONS = ("all", "nothing", "cpu", "cuda", "goc3")
+const VALID_SELECTIONS = ("all", "nothing", "cpu", "cuda", "goc3", "aot")
 SELECTION in VALID_SELECTIONS ||
     error("EMP_TEST_SELECTION must be one of $(join(VALID_SELECTIONS, ", ")), got $(repr(SELECTION))")
 
@@ -31,8 +33,9 @@ SELECTION in ("all", "nothing") && push!(CONFIGS, nothing)
 SELECTION in ("all", "cpu") && push!(CONFIGS, CPU())
 SELECTION in ("all", "cuda") && CUDA.has_cuda_gpu() && push!(CONFIGS, CUDABackend())
 const RUN_GOC3 = SELECTION in ("all", "goc3")
+const RUN_AOT = SELECTION == "aot" || haskey(ENV, "EMP_TEST_AOT")
 
-isempty(CONFIGS) && !RUN_GOC3 && error("EMP_TEST_SELECTION=$(SELECTION) selected no tests")
+isempty(CONFIGS) && !RUN_GOC3 && !RUN_AOT && error("EMP_TEST_SELECTION=$(SELECTION) selected no tests")
 
 test_cases = [("../data/pglib_opf_case3_lmbd.m", "case3", test_case3),
               ("../data/pglib_opf_case5_pjm.m", "case5", test_case5),
@@ -149,13 +152,25 @@ function runtests()
                 end
             end
             test_matpower_output("../data/pglib_opf_case14_ieee.m")
+            test_parser("../data/pglib_opf_case14_ieee.m")
+            test_pglib_reference(["pglib_opf_case5_pjm.m", "pglib_opf_case14_ieee.m",
+                                  "pglib_opf_case30_ieee.m", "pglib_opf_case57_ieee.m"])
 
-            # Once for the whole suite, not once per case and formulation:
-            # `compile_all` is minutes of juliac.
-            if haskey(ENV, "EMP_TEST_AOT")
-                @testset "compile_all, then the models it returns" begin
-                    test_aot()
+            ipopt = JuMP.optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0)
+            for (filename, case, _) in test_cases
+                @testset "$case, DCOPF == PowerModels" begin
+                    m, v, _ = dcopf_model(filename)
+                    result = exasolve(m, nothing; print_level = MadNLP.ERROR)
+                    test_dcopf_case(result, solve_opf(filename, DCPPowerModel, ipopt), v.pg, v.pf)
                 end
+            end
+        end
+
+        # Once for the whole suite, not once per case and formulation:
+        # `compile_all` is minutes of juliac.
+        if RUN_AOT
+            @testset "compile_all, then the models it returns" begin
+                test_aot()
             end
         end
 

@@ -1,10 +1,10 @@
 # `::Type{T}`, not a `Type`-typed value — the same fault the static parser had:
 # as a plain argument it arrives abstract and `parse_ac_power_data` cannot
 # specialize, so every field read off the result widens.
-parse_mp_power_data(filename, N, r) = parse_mp_power_data(filename, N, r, Float64)
-function parse_mp_power_data(filename, N, corrective_action_ratio, ::Type{T}) where {T}
+parse_mp_power_data(case, N, r) = parse_mp_power_data(case, N, r, Float64)
+function parse_mp_power_data(case, N, corrective_action_ratio, ::Type{T}) where {T}
 
-    raw = parse_ac_power_data(filename, T)
+    raw = parse_ac_power_data(case, T)
 
     nbus = length(raw.bus)
 
@@ -28,57 +28,38 @@ function parse_mp_power_data(filename, N, corrective_action_ratio, ::Type{T}) wh
     return data
 end
 
+# A load curve scales each period's demand. Bus shunts are fixed admittances
+# (capacitor banks, reactors), not demand, so they keep their base value.
 function update_load_data(busarray, curve)
-
-    for t in eachindex(curve)
-        for x in 1:size(busarray, 1)
-            b = busarray[x, t]
-            busarray[x, t] = (
-                b=ExaPowerIO.BusData{typeof(b.b.pd)}(
-                    b.b.i,
-                    b.b.bus_i,
-                    b.b.type,
-                    b.b.pd*curve[t],
-                    b.b.qd*curve[t],
-                    b.b.gs*curve[t],
-                    b.b.bs*curve[t],
-                    b.b.area,
-                    b.b.vm,
-                    b.b.va,
-                    b.b.baseKV,
-                    b.b.zone,
-                    b.b.vmax,
-                    b.b.vmin,
-                  ), t=t
-                )
-        end
+    N = size(busarray, 2)
+    length(curve) >= N || throw(DimensionMismatch(
+        "a load curve of " * string(length(curve)) * " periods was given for " * string(N)))
+    for t in 1:N, x in axes(busarray, 1)
+        b = busarray[x, t].b
+        busarray[x, t] = (; b = merge(b, (; pd = oftype(b.pd, b.pd * curve[t]),
+                                             qd = oftype(b.qd, b.qd * curve[t]))), t)
     end
+    return busarray
 end
 
-#Pd, Qd as input
+# Pd, Qd as input: MW, one row per bus of the model (isolated buses excluded)
+# in file order, one column per period.
 function update_load_data(busarray, pd, qd, baseMVA)
-    for (idx ,pd_t) in pairs(pd)
-        b = busarray[idx[1], idx[2]]
-        busarray[idx[1], idx[2]] = (
-            b=ExaPowerIO.BusData{typeof(b.b.pd)}(
-                b.b.i,
-                b.b.bus_i,
-                b.b.type,
-                pd_t / baseMVA,
-                qd[idx[1], idx[2]] / baseMVA,
-                b.b.gs,
-                b.b.bs,
-                b.b.area,
-                b.b.vm,
-                b.b.va,
-                b.b.baseKV,
-                b.b.zone,
-                b.b.vmax,
-                b.b.vmin,
-            ),
-            t=idx[2],
-        )
+    nbus, N = size(busarray)
+    size(pd) == size(qd) || throw(DimensionMismatch(
+        "Pd is " * string(size(pd)) * " but Qd is " * string(size(qd))))
+    size(pd, 1) == nbus || throw(DimensionMismatch(
+        "the load matrices have " * string(size(pd, 1)) * " rows but the case has " *
+        string(nbus) * " buses"))
+    size(pd, 2) >= N || throw(DimensionMismatch(
+        "the load matrices have " * string(size(pd, 2)) * " periods but " * string(N) *
+        " were asked for"))
+    for t in 1:N, x in 1:nbus
+        b = busarray[x, t].b
+        busarray[x, t] = (; b = merge(b, (; pd = oftype(b.pd, pd[x, t] / baseMVA),
+                                             qd = oftype(b.qd, qd[x, t] / baseMVA))), t)
     end
+    return busarray
 end
 
 #If no storage contraints, the "build_base_mpopf" returns the final version of the mpopf
@@ -150,17 +131,17 @@ const MPOPF_DEFAULT_CURVE = [1.0, 0.9, 0.8, 0.95, 1.0]
 # of the data, so it comes from `length(data.bus)` exactly as the static
 # formulations do it, and one recipe serves every network size.
 """
-    mpopf_args_default(filename) -> (data,)
+    mpopf_args_default(case) -> (data,)
 
 [`mpopf_args`](@ref) at [`MPOPF_DEFAULT_CURVE`](@ref) — the spelling a compiled
 library can call. Define your own one-argument wrapper in your package for a
 different curve.
 """
-mpopf_args_default(filename) =
-    mpopf_args(filename, MPOPF_DEFAULT_CURVE, length(MPOPF_DEFAULT_CURVE), Float64, nothing, 0.1)
+mpopf_args_default(case) =
+    mpopf_args(case, MPOPF_DEFAULT_CURVE, length(MPOPF_DEFAULT_CURVE), Float64, nothing, 0.1)
 
 """
-    mpopf_args(filename, curve; N, T, backend, corrective_action_ratio) -> (data,)
+    mpopf_args(case, curve; N, T, backend, corrective_action_ratio) -> (data,)
 
 The arguments that close [`mpopf_recipe`](@ref): the parsed case with the load
 curve already applied, plus everything the recipe cannot compute from a
@@ -177,15 +158,15 @@ level: there are fifteen of them, and `map` over a NamedTuple stops inferring
 elementwise past 31 fields, which would leave the whole argument tuple with
 concrete names and no value types.
 """
-mpopf_args(filename, curve; N = length(curve), T = Float64, backend = nothing,
+mpopf_args(case, curve; N = length(curve), T = Float64, backend = nothing,
            corrective_action_ratio = 0.1) =
-    mpopf_args(filename, curve, N, T, backend, corrective_action_ratio)
+    mpopf_args(case, curve, N, T, backend, corrective_action_ratio)
 
 # The positional method is the one a compiled library reaches: `::Type{T}` makes
 # `T` a static parameter, where the keyword form leaves it a `Type`-typed value
 # nothing downstream can specialize on.
-function mpopf_args(filename, curve, N, ::Type{T}, backend, corrective_action_ratio) where {T}
-    d = parse_mp_power_data(filename, N, corrective_action_ratio, T)
+function mpopf_args(case, curve, N, ::Type{T}, backend, corrective_action_ratio) where {T}
+    d = parse_mp_power_data(case, N, corrective_action_ratio, T)
     update_load_data(d.busarray, curve)
     return (convert_data(_mp_narrow(d, N, T), backend),)
 end
@@ -587,19 +568,23 @@ function add_smooth_cons(core, data, N, vars, cons, discharge_func, form)
 end
 
 """
-    mpopf_model(filename, curve; kwargs...)
-    mpopf_model(filename, active_power_data, reactive_power_data; kwargs...)
-    mpopf_model(filename, curve, discharge_func::Function; kwargs...)
-    mpopf_model(filename, active_power_data, reactive_power_data, discharge_func::Function; kwargs...)
+    mpopf_model(case, curve; kwargs...)
+    mpopf_model(case, active_power_data, reactive_power_data; kwargs...)
+    mpopf_model(case, curve, discharge_func::Function; kwargs...)
+    mpopf_model(case, active_power_data, reactive_power_data, discharge_func::Function; kwargs...)
 
 Construct a multi-period AC optimal power flow (MPOPF) model using different formats of load input data.
 
 # Arguments
 
-- `filename::String`: Path to the network data file (e.g., MATPOWER).
-- `curve::AbstractVector`: A time series of demand multiplier values.
-- `active_power_data::String`: Path to a matrix of active power loads (Pd) per bus and time.
-- `reactive_power_data::String`: Path to a matrix of reactive power loads (Qd).
+- `case`: the network, as for [`opf_model`](@ref): a path, a bare PGLib-OPF name, or a
+  network already parsed with PowerIO.
+- `curve::AbstractVector`: A time series of demand multiplier values. Each period's
+  loads are the case's loads times `curve[t]`; bus shunts keep their value.
+- `active_power_data::String`: Path to a matrix of active power loads (Pd) in MW, one
+  row per bus of the model (isolated buses excluded) in file order and one column
+  per period.
+- `reactive_power_data::String`: Path to the matching matrix of reactive power loads (Qd).
 - `discharge_func::Function`: (Optional) A function specifying battery discharge losses.
 
 ## Keyword Arguments
@@ -621,13 +606,13 @@ A vector `(model::ExaModel object, variables::NamedTuple of variables, constrain
 
 This function is overloaded for different combinations of input:
 
-1. `mpopf_model(filename, curve)`
-2. `mpopf_model(filename, active_power_data, reactive_power_data)`
-3. `mpopf_model(filename, curve, discharge_func)`
-4. `mpopf_model(filename, active_power_data, reactive_power_data, discharge_func)`
+1. `mpopf_model(case, curve)`
+2. `mpopf_model(case, active_power_data, reactive_power_data)`
+3. `mpopf_model(case, curve, discharge_func)`
+4. `mpopf_model(case, active_power_data, reactive_power_data, discharge_func)`
 """
 function mpopf_model(
-    filename, curve;
+    case, curve;
     N = length(curve),
     corrective_action_ratio = 0.1,
     backend = nothing,
@@ -639,7 +624,7 @@ function mpopf_model(
 )
 
     @assert length(curve) > 0
-    data, = mpopf_args(filename, curve; N, T, backend, corrective_action_ratio)
+    data, = mpopf_args(case, curve; N, T, backend, corrective_action_ratio)
     Nbus = length(data.bus)
 
     return build_mpopf(data, Nbus, N, form, user_callback, backend = backend, T = T, storage_complementarity_constraint = storage_complementarity_constraint, kwargs...)
@@ -647,7 +632,7 @@ function mpopf_model(
 end
 
 function mpopf_model(
-    filename, active_power_data, reactive_power_data;
+    case, active_power_data, reactive_power_data;
     pd = readdlm(active_power_data),
     qd = readdlm(reactive_power_data),
     N = size(pd, 2),
@@ -660,11 +645,10 @@ function mpopf_model(
     kwargs...,
 )
 
-    d = parse_mp_power_data(filename, N, corrective_action_ratio, T)
+    d = parse_mp_power_data(case, N, corrective_action_ratio, T)
     update_load_data(d.busarray, pd, qd, d.baseMVA[])
     data = convert_data(_mp_narrow(d, N, T), backend)
     Nbus = length(data.bus)
-    @assert Nbus == size(pd, 1)
 
     return build_mpopf(data, Nbus, N, form, user_callback, backend = backend, T = T, storage_complementarity_constraint = storage_complementarity_constraint, kwargs...)
 
@@ -672,7 +656,7 @@ end
 
 #Input to discharge_func should be discharge rate (or negative charge), output should be loss in battery level
 function mpopf_model(
-    filename, curve, discharge_func::Function;
+    case, curve, discharge_func::Function;
     N = length(curve),
     corrective_action_ratio = 0.1,
     backend = nothing,
@@ -683,7 +667,7 @@ function mpopf_model(
 )
 
     @assert length(curve) > 0
-    data, = mpopf_args(filename, curve; N, T, backend, corrective_action_ratio)
+    data, = mpopf_args(case, curve; N, T, backend, corrective_action_ratio)
     Nbus = length(data.bus)
 
     return build_mpopf(data, Nbus, N, discharge_func, form,user_callback, backend = backend, T = T, kwargs...)
@@ -691,7 +675,7 @@ function mpopf_model(
 end
 
 function mpopf_model(
-    filename, active_power_data, reactive_power_data, discharge_func::Function;
+    case, active_power_data, reactive_power_data, discharge_func::Function;
     pd = readdlm(active_power_data),
     qd = readdlm(reactive_power_data),
     N = size(pd, 2),
@@ -705,11 +689,10 @@ function mpopf_model(
 )
 
 
-    d = parse_mp_power_data(filename, N, corrective_action_ratio, T)
+    d = parse_mp_power_data(case, N, corrective_action_ratio, T)
     update_load_data(d.busarray, pd, qd, d.baseMVA[])
     data = convert_data(_mp_narrow(d, N, T), backend)
     Nbus = length(data.bus)
-    @assert Nbus == size(pd, 1)
 
     return build_mpopf(data, Nbus, N, discharge_func, form,user_callback, backend = backend, T = T, kwargs...)
 end
