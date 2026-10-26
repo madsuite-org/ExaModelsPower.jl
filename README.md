@@ -1,11 +1,11 @@
 # ExaModelsPower.jl
 ExaModelsPower.jl is an optimal power flow models using ExaModels.jl
 
-[![CI](https://github.com/MadNLP/ExaModelsPower.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/MadNLP/ExaModelsPower.jl/actions/workflows/ci.yml)
+[![CI](https://github.com/madsuite-org/ExaModelsPower.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/madsuite-org/ExaModelsPower.jl/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![doc](https://img.shields.io/badge/docs-stable-blue.svg)](https://madsuite.org/ExaModelsPower.jl/stable/) 
 [![doc](https://img.shields.io/badge/docs-dev-blue.svg)](https://madsuite.org/ExaModelsPower.jl/dev/) 
-[![codecov](https://codecov.io/gh/MadNLP/ExaModelsPower.jl/graph/badge.svg?token=ybOObxcXhB)](https://codecov.io/gh/MadNLP/ExaModelsPower.jl)
+[![codecov](https://codecov.io/gh/madsuite-org/ExaModelsPower.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/madsuite-org/ExaModelsPower.jl)
 
 ## Usage
 ### Static optimal power flow
