@@ -12,8 +12,10 @@ MadNLP = "2621e9c9-9eb4-46b1-8089-e8c72242dfb6"
 MadNLPGPU = "d72a61cc-809d-412f-99be-fd81f4b8a598"
 NLPModels = "a4795742-8479-5a88-8948-cc11e1c8c1a6"
 NLPModelsJuMP = "792afdf1-32c1-5681-94e0-d7bf7a5df49e"
+PowerIO = "05ed8b54-f668-4096-9d0d-e8c3dd9dc169"
 PowerModels = "c36e90e8-916a-50a6-bd94-075b64ef4655"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [sources]
 CNLPModels = {rev = "master", url = "https://github.com/madsuite-org/CNLPModels.jl"}
+PowerIO = {rev = "trim-safe-bridge", url = "https://github.com/eigenergy/PowerIO.jl"}
