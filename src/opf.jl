@@ -345,16 +345,16 @@ The same recipe instantiates at any case; it is not consumed by the first use.
 - `form`: the formulation, an [`OPFForm`](@ref) instance — `Polar()` (default), `Rect()` or `DC()`.
 - `user_callback`: user function that extends the model.
 """
-# `T` and `user_callback` are typed by static parameters so that the keyword body is
-# specialized on them: Julia does not specialize on a `Type` or a function that is only
-# passed through, and the body compiled for an abstract `T` is both slower to infer and
-# open to invalidation by packages loaded later.
 function opf_recipe(;
     backend = nothing,
     T::Type{TT} = Float64,
     form::OPFForm = Polar(),
     user_callback::UC = dummy_extension,
 ) where {TT, UC}
+    # `T` and `user_callback` are typed by static parameters so that the keyword body is
+    # specialized on them: Julia does not specialize on a `Type` or a function that is
+    # only passed through, and the body compiled for an abstract `T` is both slower to
+    # infer and open to invalidation by packages loaded later. Same in `opf_model`.
     core, data = ExaCore(T; backend = backend, nargs = Val(1))
     return build_opf(core, form, data, user_callback, T)
 end
