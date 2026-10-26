@@ -11,7 +11,7 @@ ExaModelsPower = "2fff4b78-0b6c-428d-bac8-85ccea8c4bdf"
 
 [compat]
 CUDA = "6"
-ExaModels = "0.12"
+ExaModels = "0.12, 0.13"
 
 [sources]
 ExaModelsPower = {path = ".."}
