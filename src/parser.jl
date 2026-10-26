@@ -59,7 +59,7 @@ end
 # module's value type at run time, which `juliac --trim=safe` refuses.
 _network(net::PowerIO.BalancedNetwork) = net
 _network(m::PowerIO.PioModule{PowerIO.BalancedNetwork}) = m.value
-_network(case::AbstractString) = PowerIO.parse(PowerIO.BalancedNetwork, _case_path(case)).value
+_network(case::AbstractString) = PowerIO.parse(PowerIO.BalancedNetwork, _case_path(case))
 
 # ── The tables ───────────────────────────────────────────────────────────────
 

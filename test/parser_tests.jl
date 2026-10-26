@@ -129,9 +129,9 @@ function test_parser(case14)
     end
 
     @testset "parse: a network PowerIO already parsed" begin
-        m = PowerIO.parse(PowerIO.BalancedNetwork, case14)
+        @test ExaModelsPower.opf_args(PowerIO.parse(PowerIO.BalancedNetwork, case14)) == ExaModelsPower.opf_args(case14)
+        m = PowerIO.parse(PowerIO.PioModule{PowerIO.BalancedNetwork}, case14)
         @test ExaModelsPower.opf_args(m) == ExaModelsPower.opf_args(case14)
-        @test ExaModelsPower.opf_args(m.value) == ExaModelsPower.opf_args(case14)
         # An update applied in PowerIO reaches the model.
         PowerIO.apply_updates!(m, [PowerIO.set_load_active_power(PowerIO.ComponentId("load", "bus-2"),
                                                                  PowerIO.ActivePower(megawatts = 30.0))])
@@ -139,7 +139,7 @@ function test_parser(case14)
     end
 
     @testset "parse: other formats" begin
-        m = PowerIO.parse(PowerIO.BalancedNetwork, case14)
+        m = PowerIO.parse(PowerIO.PioModule{PowerIO.BalancedNetwork}, case14)
         json = tempname() * ".json"
         PowerIO.emit(m, "powermodels-json", json)
         dj, ref = ExaModelsPower.parse_ac_power_data(json), ExaModelsPower.parse_ac_power_data(case14)
@@ -185,7 +185,7 @@ function test_parser(case14)
         @test_throws DimensionMismatch write_matpower_solution(tempname() * ".m", "../data/pglib_opf_case5_pjm.m",
                                                                v, c, x, y, z, z)
         json = tempname() * ".json"
-        PowerIO.emit(PowerIO.parse(PowerIO.BalancedNetwork, case14), "powermodels-json", json)
+        PowerIO.emit(PowerIO.parse(PowerIO.PioModule{PowerIO.BalancedNetwork}, case14), "powermodels-json", json)
         @test_throws ArgumentError write_matpower_solution(tempname() * ".m", json, v, c, x, y, z, z)
     end
 
