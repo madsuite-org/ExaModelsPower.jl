@@ -48,7 +48,9 @@ load curve, which is why they are per-`N` in a way the static ones are not.
 
 The static models (`acp`, `acr`, `dcp`) also carry [`write_matpower_solution`](@ref)
 as the writer `matpower`: `acp_write_matpower(id, out, x, y, zl, zu, objective, status)`
-writes a solved MATPOWER case for the case file the instance was built from.
+writes a solved MATPOWER case for the case file the instance was built from, and
+[`write_violations`](@ref) as the writer `violations`, which writes the largest
+constraint and bound violation of each group (`acp_write_violations`, same arguments).
 
 ```julia
 compile_all(ExaModelsPower)                        # all six, into "@emp"
@@ -68,7 +70,8 @@ function ExaModelsCompiler.compile_all(
     models = _emp_models(case; T = T, N = N)
     chosen = ExaModelsCompiler.select(models; only = only, exclude = exclude)
     names = first.(chosen)
-    writers = [name => (:matpower => ExaModelsPower.write_matpower_solution,)
+    writers = [name => (:matpower => ExaModelsPower.write_matpower_solution,
+                        :violations => ExaModelsPower.write_violations)
                for name in (:acp, :acr, :dcp) if name in names]
     return ExaModelsCompiler.compile_library(path, chosen...; writers, kwargs...)
 end
