@@ -94,7 +94,7 @@ function test_aot()
     lib = CNLPModels.load(r.libpath)
     dl(s) = CNLPModels.Libdl.dlsym(lib.handle, s)
     for (p, form) in (("acp", Polar()), ("acr", Rect()), ("dcp", DC()))
-        @test ccall(dl(Symbol(p, "_nwriters")), Cint, ()) == 1
+        @test ccall(dl(Symbol(p, "_nwriters")), Cint, ()) == 2
         m, v, c = opf_model(case; form)
         res = madnlp(m; print_level = MadNLP.ERROR)
         ref = tempname() * ".m"
@@ -107,5 +107,13 @@ function test_aot()
                     id, out, res.solution, res.multipliers, res.multipliers_L, res.multipliers_U,
                     res.objective, "solved") == 0
         @test read(out, String) == read(ref, String)
+        # And the violations writer what `write_violations` does.
+        vref, vout = tempname(), tempname()
+        write_violations(vref, case, m, res.solution, res.multipliers, res.multipliers_L, res.multipliers_U)
+        @test ccall(dl(Symbol(p, "_write_violations")), Cint,
+                    (Cint, Cstring, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cstring),
+                    id, vout, res.solution, res.multipliers, res.multipliers_L, res.multipliers_U,
+                    res.objective, "solved") == 0
+        @test read(vout, String) == read(vref, String)
     end
 end
