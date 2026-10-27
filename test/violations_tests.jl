@@ -15,8 +15,8 @@ function test_violations(case)
             x[i] = m.meta.uvar[i] + 0.5
             w = opf_violations(m, x)
             @test w.generation ≈ 0.5
-            # Power balance at that generator's bus moves by the same 0.5.
-            @test w.power_balance ≈ 0.5 atol = 1e-6
+            # Power balance at that generator's bus moves by the change in its output.
+            @test w.power_balance ≈ x[i] - r.solution[i] atol = 1e-6
 
             # The writer writes the same numbers.
             out = tempname()
