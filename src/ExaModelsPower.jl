@@ -4,12 +4,13 @@ import ExaModels: ExaModels, ExaCore, @add_var, @add_par, @add_con, @add_obj, @a
 using DelimitedFiles
 using ExaPowerIO
 using JSON
+import PowerIO
 
 # Parsers and data stay separate from the models that consume them.
 include("parser.jl")          # matpower -> the tables every model is built from
 include("constraint.jl")      # the algebraic expressions, shared by all three
-include("goc3_parser.jl")     # GOC3-specific parsing
-include("sc_parser.jl")       #   "
+include("goc3_parser.jl")     # a GOC3 problem, through PowerIO
+include("sc_parser.jl")       # the GOC3 model's arrays, at a fixed commitment
 
 include("opf.jl")             # static: polar, rect, DC
 include("mpopf.jl")           # multi-period: polar, rect, DC
