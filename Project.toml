@@ -11,6 +11,9 @@ PowerIO = "05ed8b54-f668-4096-9d0d-e8c3dd9dc169"
 PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 
 [weakdeps]
+# Never loaded; listed only so the [compat] bound below applies when the
+# resolver pulls it in transitively (see there).
+TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
@@ -33,9 +36,21 @@ KernelAbstractions = "0.9, 0.10"
 Metal = "1.9"
 oneAPI = "2"
 PrecompileTools = "1"
+# TimerOutputs 1.x depends on PrettyTables 3, which depends on REPL. With REPL in
+# the environment, Pkg (here through LazyArtifacts) loads its REPLExt, and
+# `juliac --trim=safe` rejects that extension with ~40 verifier errors, so
+# `compile_all` fails. LinearOperators 2.14.3 (via NLPModels) admits TimerOutputs 1;
+# holding it at 0.5 keeps REPL out of the compiled library's environment.
+TimerOutputs = "0.5"
 ExaModels = "0.12, 0.13, 0.14"
 ExaModelsCompiler = "0.1.1"
-ExaPowerIO = "0.3"
+# 0.3.1 rather than 0.3: v0.3.0 builds `bus_map` from an untyped `[]` narrowed
+# by its `Vector{Int}` annotation, and the resulting
+# `convert(Vector{Int64}, ::Vector{Any})` copies through a dynamic `setindex!`
+# that `juliac --trim=safe` will not resolve. Resolving to it makes
+# `compile_all` fail on four verifier errors that all bottom out in that one
+# conversion, so the floor is a build requirement, not a preference.
+ExaPowerIO = "0.3.1"
 JSON = "0.21"
 PowerIO = "0.11.6"
 julia = "1.11"
