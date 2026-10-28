@@ -24,5 +24,5 @@ CNLPModels = {rev = "master", url = "https://github.com/madsuite-org/CNLPModels.
 # the SHA rather than to `schur-design-constraints`: julia-actions/cache restores
 # an earlier clone and a branch name resolves to whatever that cache holds.
 # Comes out when MadNLP tags it.
-MadNLP = {rev = "6dd1a6994453d580de69c589117c7327a96300ad", url = "https://github.com/MadNLP/MadNLP.jl"}
-MadNLPGPU = {rev = "6dd1a6994453d580de69c589117c7327a96300ad", subdir = "lib/MadNLPGPU", url = "https://github.com/MadNLP/MadNLP.jl"}
+MadNLP = {rev = "059c2f62a3d22bfd96f84b0701793a4e228ddd5f", url = "https://github.com/MadNLP/MadNLP.jl"}
+MadNLPGPU = {rev = "059c2f62a3d22bfd96f84b0701793a4e228ddd5f", subdir = "lib/MadNLPGPU", url = "https://github.com/MadNLP/MadNLP.jl"}

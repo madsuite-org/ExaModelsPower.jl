@@ -80,12 +80,12 @@ using ExaModelsPower, MadNLP, DelimitedFiles
 idxs = vec(readdlm("data/case118.Ctgs", Int))         # 1-based branch indices
 contingencies = [(type = :branch, idx = l) for l in idxs]
 
-model, vars, cons = scopf_model("case118.m", contingencies; form = Polar())
+model, vars, cons = scopf_model("data/case118.m", contingencies; form = Polar())
 result = madnlp(model; tol = 1e-4)
 
 # On a GPU backend, solve the condensed KKT system with cuDSS:
 using MadNLPGPU, CUDA, CUDSS
-model, vars, cons = scopf_model("case118.m", contingencies; backend = CUDABackend())
+model, vars, cons = scopf_model("data/case118.m", contingencies; backend = CUDABackend())
 result = madnlp(model;
     kkt_system    = MadNLP.SparseCondensedKKTSystem,
     linear_solver = MadNLPGPU.CUDSSSolver,
@@ -100,7 +100,7 @@ which factorizes the per-contingency blocks in parallel. It returns an extra `po
 NamedTuple with the Schur dimensions:
 
 ```julia
-model, vars, cons, info = scopf_twostage_model("case118.m", contingencies; backend = CUDABackend())
+model, vars, cons, info = scopf_twostage_model("data/case118.m", contingencies; backend = CUDABackend())
 result = madnlp(model;
     callback      = MadNLP.SparseCallback,
     kkt_system    = MadNLP.SchurComplementCondensedKKTSystem,

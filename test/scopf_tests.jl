@@ -214,6 +214,26 @@ function scopf_contingency_sets()
     ]
 end
 
+# The scenario tags handed to the Schur solver must cover every variable and row,
+# including any a `user_callback` adds, and for both AC forms of the two-stage model.
+function test_scopf_twostage_tags(case, contingencies)
+    function cb(core, vars, cons)
+        x = ExaModels.@add_var(core, x_extra, 3; lvar = 0.0, uvar = 1.0)
+        c = ExaModels.@add_con(core, c_extra, x_extra[i] for i in 1:3)
+        return core, (; x_extra = x), (; c_extra = c)
+    end
+    for form in (Polar(), Rect())
+        m0, _, _, info0 = scopf_twostage_model(case, contingencies; form)
+        m, vars, _, info = scopf_twostage_model(case, contingencies; form, user_callback = cb)
+        @test m0.meta.nvar == length(info0.var_scen)
+        @test m.meta.nvar == m0.meta.nvar + 3
+        @test m.meta.nvar == length(info.var_scen)
+        @test m.meta.ncon == length(info.con_scen)
+        @test info.nd + info.ns * info.nv == m.meta.nvar
+        @test haskey(vars, :x_extra)
+    end
+end
+
 function scopf_tests(; cpu = true, gpu = CUDA.has_cuda_gpu())
     (cpu || gpu) || return nothing
 
@@ -249,6 +269,10 @@ function scopf_tests(case, name, contingencies; cpu, gpu)
 
             @testset "DC outage removes the outaged element" begin
                 test_scopf_dc(case, contingencies)
+            end
+
+            @testset "two-stage scenario tags cover the whole model" begin
+                test_scopf_twostage_tags(case, contingencies)
             end
         end
 

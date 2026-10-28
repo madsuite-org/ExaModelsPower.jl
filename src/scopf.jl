@@ -711,6 +711,9 @@ function scopf_twostage_model(
     vars = merge(V0pub, G0pub, F0pub, Vkpub, Gkpub, Fkpub)
     cons = merge(cons0, consk, (; c_corrective))
 
+    core, vars2, cons2 = user_callback(core, vars, cons)
+
+    # Read after `user_callback`, so rows and variables it adds are tagged too.
     # Schur dimensions AND the full per-variable/per-constraint scenario tags.
     # MadNLP's SchurComplementCondensedKKTSystem partitions by these tags
     # (design and scenario variables are interleaved here, not contiguous), and
@@ -728,7 +731,6 @@ function scopf_twostage_model(
         con_scen = con_scen,
     )
 
-    core, vars2, cons2 = user_callback(core, vars, cons)
     model = ExaModel(core; kwargs...)
 
     return model, (; vars..., vars2...), (; cons..., cons2...), post_solve_info

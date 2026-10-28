@@ -1,7 +1,7 @@
 module ExaModelsPower
 
 import ExaModels: ExaModels, ExaCore, @add_var, @add_par, @add_con, @add_obj, @add_con!, ExaModel, convert_array, solution
-import ExaModels: TwoStageExaCore, EachScenario
+import ExaModels: EachScenario
 using DelimitedFiles
 using ExaPowerIO
 using JSON
