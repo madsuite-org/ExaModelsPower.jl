@@ -138,4 +138,31 @@ function test_aot()
     x4 = [0.9 + 0.02sin(i) for i = 1:m4.meta.nvar]
     @test NLPModels.obj(m4, x4) == NLPModels.obj(ref4, x4)
     @test collect(NLPModels.cons(m4, x4)) == collect(NLPModels.cons(ref4, x4))
+
+    # The compiled MATPOWER writer writes what `write_matpower_solution` does.
+    lib = CNLPModels.load(r.libpath)
+    dl(s) = CNLPModels.Libdl.dlsym(lib.handle, s)
+    for (p, form) in (("acp", Polar()), ("acr", Rect()), ("dcp", DC()))
+        @test ccall(dl(Symbol(p, "_nwriters")), Cint, ()) == 2
+        m, v, c = opf_model(case; form)
+        res = madnlp(m; print_level = MadNLP.ERROR)
+        ref = tempname() * ".m"
+        write_matpower_solution(ref, case, v, c, res.solution, res.multipliers, res.multipliers_L, res.multipliers_U;
+                                form, objective = res.objective, status = "solved")
+        id = ccall(dl(Symbol(p, "_new_str")), Cint, (Cstring,), case)
+        out = tempname() * ".m"
+        @test ccall(dl(Symbol(p, "_write_matpower")), Cint,
+                    (Cint, Cstring, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cstring),
+                    id, out, res.solution, res.multipliers, res.multipliers_L, res.multipliers_U,
+                    res.objective, "solved") == 0
+        @test read(out, String) == read(ref, String)
+        # And the violations writer what `write_violations` does.
+        vref, vout = tempname(), tempname()
+        write_violations(vref, case, m, res.solution, res.multipliers, res.multipliers_L, res.multipliers_U)
+        @test ccall(dl(Symbol(p, "_write_violations")), Cint,
+                    (Cint, Cstring, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cstring),
+                    id, vout, res.solution, res.multipliers, res.multipliers_L, res.multipliers_U,
+                    res.objective, "solved") == 0
+        @test read(vout, String) == read(vref, String)
+    end
 end

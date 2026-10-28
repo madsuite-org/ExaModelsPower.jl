@@ -4,12 +4,16 @@ using Test, ExaModelsPower, MadNLP, MadNLPGPU, KernelAbstractions, CUDA, CUDSS, 
 # neither -- which took out 24 tests that call `solution` unqualified.
 using ExaModelsCompiler
 using CNLPModels: CNLPModel
+import CNLPModels
 import NLPModels
 import LinearAlgebra
+import JSON
 
 include("opf_tests.jl")
 include("recipe_tests.jl")
 include("scopf_tests.jl")
+include("matpower_output_tests.jl")
+include("violations_tests.jl")
 
 # CI runs each backend, and the GOC3 smoke test, as a separate job, so the wall clock is
 # the slowest of them rather than their sum (they were 13.0, 14.8, 21.5 and 74.9 min in run
@@ -168,6 +172,8 @@ function runtests()
                     test_solution_handles(filename, form)
                 end
             end
+            test_matpower_output("../data/pglib_opf_case14_ieee.m")
+            test_violations("../data/pglib_opf_case14_ieee.m")
 
             # DC is not in `static_forms` -- those entries carry a PowerModels
             # type and a voltage test, and DC has neither -- so the DC SCOPF's
