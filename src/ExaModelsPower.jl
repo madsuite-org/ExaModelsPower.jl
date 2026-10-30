@@ -17,6 +17,7 @@ include("mpopf.jl")           # multi-period: polar, rect, DC
 include("goc3.jl")            # security-constrained, GOC3 formulation
 include("matpower_output.jl")  # solved MATPOWER case from an OPF solution
 include("violations.jl")       # constraint and bound violations by group
+include("case_start.jl")       # starting from the case's operating point
 include("precompile.jl")       # precompile workloads (CPU here, GPUs in extensions)
 
 const NAMES = filter(names(@__MODULE__; all = true)) do x
@@ -36,6 +37,7 @@ end
 # compiles. Neither ends in "model", so they are named here.
 export OPFForm, Polar, Rect, DC
 export write_matpower_solution, opf_violations, write_violations
+export CASE_START, case_start, write_case_start
 export opf_recipe, opf_args, opf_core, opf_model
 export ac_opf_recipe, ac_opf_args
 export dcopf_recipe

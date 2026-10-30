@@ -50,7 +50,11 @@ The static models (`acp`, `acr`, `dcp`) also carry [`write_matpower_solution`](@
 as the writer `matpower`: `acp_write_matpower(id, out, x, y, zl, zu, objective, status)`
 writes a solved MATPOWER case for the case file the instance was built from, and
 [`write_violations`](@ref) as the writer `violations`, which writes the largest
-constraint and bound violation of each group (`acp_write_violations`, same arguments).
+constraint and bound violation of each group (`acp_write_violations`, same arguments),
+and [`write_case_start`](@ref) as the writer `start`, which writes the starting point
+taken from the case file's voltages and dispatch, one number per line
+(`acp_write_start`): a program solving with the library reads it back as the starting
+point, to warm-start from a solved case.
 
 ```julia
 compile_all(ExaModelsPower)                        # all six, into "@emp"
@@ -71,7 +75,8 @@ function ExaModelsCompiler.compile_all(
     chosen = ExaModelsCompiler.select(models; only = only, exclude = exclude)
     names = first.(chosen)
     writers = [name => (:matpower => ExaModelsPower.write_matpower_solution,
-                        :violations => ExaModelsPower.write_violations)
+                        :violations => ExaModelsPower.write_violations,
+                        :start => ExaModelsPower.write_case_start)
                for name in (:acp, :acr, :dcp) if name in names]
     return ExaModelsCompiler.compile_library(path, chosen...; writers, kwargs...)
 end
