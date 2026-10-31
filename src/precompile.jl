@@ -51,11 +51,14 @@ function _use_results(case, form, m, vars, cons)
         out(name) = joinpath(dir, name)
         call(write_matpower_solution, out("solution.m"), case, vars, cons, xh, yh, zh, zh;
              form, objective = 0.0, status = "LOCALLY_SOLVED")
-        # the forms that take the model, as a compiled library carries them
-        call(write_matpower_solution, out("model.m"), case, m, xh, yh, zh, zh;
-             objective = 0.0, status = "LOCALLY_SOLVED")
-        call(write_violations, out("violations.csv"), case, m, xh, yh, zh, zh)
-        call(write_case_start, out("start.txt"), case, m, xh, yh, zh, zh)
+        # The forms that take the model, as a compiled (CPU) library carries them. They
+        # pass `x` to the model, so on a GPU they would need device arrays.
+        if x isa Array
+            call(write_matpower_solution, out("model.m"), case, m, xh, yh, zh, zh;
+                 objective = 0.0, status = "LOCALLY_SOLVED")
+            call(write_violations, out("violations.csv"), case, m, xh, yh, zh, zh)
+            call(write_case_start, out("start.txt"), case, m, xh, yh, zh, zh)
+        end
     end
     call(opf_violations, m, x)
     call(case_start, case, m)
