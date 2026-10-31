@@ -177,6 +177,9 @@ function runtests()
             backend isa CUDABackend && @testset "no compilation at run time, $backend" begin
                 test_zero_compile("using CUDA; kw = (; backend = CUDABackend())")
             end
+            backend isa CPU && @testset "no compilation at run time, $backend" begin
+                test_zero_compile("using KernelAbstractions; kw = (; backend = CPU())")
+            end
 
             # Static AC
             for (filename, case, test_function) in test_cases
