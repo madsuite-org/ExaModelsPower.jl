@@ -167,6 +167,10 @@ function runtests()
         for backend in CONFIGS
             solving = solve_here(backend)
 
+            backend === nothing || @testset "case start, $backend" begin
+                test_case_start_backend("../data/pglib_opf_case14_ieee.m", backend)
+            end
+
             # Static AC
             for (filename, case, test_function) in test_cases
                 for (form_str, form, power_model, test_voltage) in static_forms
