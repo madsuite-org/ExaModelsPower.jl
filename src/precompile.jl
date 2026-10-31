@@ -106,8 +106,10 @@ function _precompile_workload(backend; T = nothing)
     for form in (Polar(), Rect(), DC())
         m = build(case; kw..., form)
         _evaluate_callbacks(m)
-        # `opf_model`, which also returns the variable and constraint handles
+        # `opf_model`, which also returns the variable and constraint handles; keyword
+        # order is part of the compiled signature, so both usual orders
         m, vars, cons = Base.invokelatest(opf_model, case; kw..., form)
+        Base.invokelatest(opf_model, case; form, kw...)
         _use_results(case, form, m, vars, cons)
     end
     if backend !== nothing
