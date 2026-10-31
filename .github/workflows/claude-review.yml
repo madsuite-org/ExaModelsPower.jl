@@ -1,0 +1,110 @@
+name: Claude review
+
+# Reviews PRs labeled `claude:pr` with Claude Fable 5.1 at effort "high". The review
+# posts inline comments plus a single `VERDICT:` comment and never blocks the merge by
+# itself: the owner decides how findings are addressed (a push to a labeled PR starts a
+# new review). Same-repo branches only; fork PRs cannot receive the billing secret.
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened, labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+  id-token: write
+
+# One review per PR at a time, and a newer event supersedes a running one: the
+# `opened` + `labeled` pair from `gh pr create --label` collapses to a single
+# review, and a label added after creation starts the review that was skipped.
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  PR: ${{ github.event.pull_request.number }}
+  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+  HEAD_REF: ${{ github.event.pull_request.head.ref }}
+
+jobs:
+  review:
+    if: >-
+      (github.event.action != 'labeled' || github.event.label.name == 'claude:pr') &&
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(github.event.pull_request.labels.*.name, 'claude:pr')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Review with Claude
+        uses: anthropics/claude-code-action@v1
+        env:
+          CLAUDE_CODE_EFFORT_LEVEL: high
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          allowed_bots: "claude[bot],github-actions[bot]"
+          claude_args: |
+            --model claude-fable-5-1
+            --effort high
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Read,Write,Glob,Grep,LS,Bash(git:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr review:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh api:*),Bash(cat:*),Bash(sed:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(diff:*)"
+          prompt: |
+            You are the reviewer of madsuite-org/ExaModelsPower.jl, running unattended in GitHub Actions.
+            REPO: ${{ github.repository }}   PR: #${{ env.PR }}   HEAD: ${{ env.HEAD_SHA }}   BRANCH: ${{ env.HEAD_REF }}
+            TITLE: ${{ github.event.pull_request.title }}
+
+            ExaModelsPower builds optimal power flow models (AC and DC OPF, multi-period
+            OPF with storage, security-constrained OPF, and the GO Competition 3 problem)
+            as ExaModels, from MATPOWER and GOC3 data. The parsers and
+            model builders are in src/; GPU backends (CUDA, AMDGPU, Metal, oneAPI) and the
+            ExaModelsCompiler ahead-of-time path are package extensions in ext/. Read the
+            diff (`git diff origin/main...HEAD`, `gh pr diff ${{ env.PR }}`), the source
+            and tests it touches, and the docs pages it affects. CPU, CUDA and GOC3 test
+            slices run in CI on this PR.
+
+            Review for, in this order:
+            1. Correctness, read critically: the power flow equations in each formulation
+               (Polar, Rect and DC), per-unit conversions, branch and transformer
+               parameters (tap ratio, phase shift, shunts), thermal and angle-difference
+               limits, generator cost terms, bus/branch/generator index mapping from the
+               data files, and 0/1-based conversions.
+            2. ExaModels discipline: constraints are written as generators over data
+               arrays so they compile into a small number of blocks; flag changes that put
+               runtime values into type parameters, split one block into many, or move
+               per-element Julia logic out of the data preprocessing and into the model.
+            3. GPU paths: model data is moved to the backend once; no scalar indexing of
+               device arrays; backend-specific code stays in ext/; results on GPU match CPU.
+            4. Tests: new behavior has a test under test/ wired into test/runtests.jl;
+               objective values and violations are checked against reference values;
+               existing tests are not weakened or deleted without a stated reason.
+            5. Conventions: no Manifest.toml; exported and public API carries docstrings;
+               compat and version changes follow semver and belong in their own commits.
+            6. CI (`gh pr checks ${{ env.PR }}`): pending or failing checks are handled
+               by the owner and are not by themselves a reason to request changes, but a
+               PR description that claims green tests which CI contradicts is.
+
+            Output:
+            - One inline comment per concrete defect (use the inline-comment tool), each
+              stating the problem and the fix. Mark nits explicitly as "nit (non-blocking)".
+            - Then exactly one verdict, posted as a neutral review so that it never blocks
+              the merge by itself: `gh pr review ${{ env.PR }} --comment --body "$BODY"`;
+              if that command fails, post the same body with
+              `gh pr comment ${{ env.PR }} --body "$BODY"`. Post it as ONE direct
+              command: write the body to a file with the Write tool and pass it with
+              `--body-file <path>` instead of `--body` whenever it is longer than a couple
+              of sentences — shell variables, heredocs and command substitution in the
+              posting command are rejected by the tool allowlist. The first line of the body
+              must be exactly
+              `VERDICT: APPROVE (head ${{ env.HEAD_SHA }})` or
+              `VERDICT: CHANGES_REQUESTED (head ${{ env.HEAD_SHA }})`, followed by a short
+              summary of what you checked and the list of blocking findings.
+            Request changes only for defects that must be fixed before merging:
+            correctness, missing or weakened tests, convention violations, a PR
+            description that does not match the diff. Do not change code, do not push,
+            do not merge.
