@@ -12,6 +12,7 @@ include("opf_tests.jl")
 include("recipe_tests.jl")
 include("matpower_output_tests.jl")
 include("violations_tests.jl")
+include("case_start_tests.jl")
 
 # CI runs each backend, and the GOC3 smoke test, as a separate job, so the wall clock is
 # the slowest of them rather than their sum (they were 13.0, 14.8, 21.5 and 74.9 min in run
@@ -152,6 +153,7 @@ function runtests()
             end
             test_matpower_output("../data/pglib_opf_case14_ieee.m")
             test_violations("../data/pglib_opf_case14_ieee.m")
+            test_case_start("../data/pglib_opf_case14_ieee.m")
 
             # Once for the whole suite, not once per case and formulation:
             # `compile_all` is minutes of juliac.
@@ -164,6 +166,10 @@ function runtests()
 
         for backend in CONFIGS
             solving = solve_here(backend)
+
+            backend === nothing || @testset "case start, $backend" begin
+                test_case_start_backend("../data/pglib_opf_case14_ieee.m", backend)
+            end
 
             # Static AC
             for (filename, case, test_function) in test_cases

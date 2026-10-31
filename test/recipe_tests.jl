@@ -94,7 +94,7 @@ function test_aot()
     lib = CNLPModels.load(r.libpath)
     dl(s) = CNLPModels.Libdl.dlsym(lib.handle, s)
     for (p, form) in (("acp", Polar()), ("acr", Rect()), ("dcp", DC()))
-        @test ccall(dl(Symbol(p, "_nwriters")), Cint, ()) == 2
+        @test ccall(dl(Symbol(p, "_nwriters")), Cint, ()) == 3
         m, v, c = opf_model(case; form)
         res = madnlp(m; print_level = MadNLP.ERROR)
         ref = tempname() * ".m"
@@ -115,5 +115,14 @@ function test_aot()
                     id, vout, res.solution, res.multipliers, res.multipliers_L, res.multipliers_U,
                     res.objective, "solved") == 0
         @test read(vout, String) == read(vref, String)
+        # And the start writer what `write_case_start` does, here from the solved case.
+        sid = ccall(dl(Symbol(p, "_new_str")), Cint, (Cstring,), ref)
+        sref, sout = tempname(), tempname()
+        write_case_start(sref, ref, m, res.solution, res.multipliers, res.multipliers_L, res.multipliers_U)
+        @test ccall(dl(Symbol(p, "_write_start")), Cint,
+                    (Cint, Cstring, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Cdouble, Cstring),
+                    sid, sout, res.solution, res.multipliers, res.multipliers_L, res.multipliers_U,
+                    res.objective, "solved") == 0
+        @test read(sout, String) == read(sref, String)
     end
 end

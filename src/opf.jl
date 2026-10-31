@@ -88,7 +88,9 @@ together with everything the recipe cannot compute from a placeholder.
 `start` overrides any of the starting points `va`, `vm`, `vr`, `vim`, `pg`,
 `qg`, `p`, `q`. Each entry may be a scalar, a vector, a `Base.Generator`, or a
 function of the parsed data (`d -> d.vm0` to warm-start from the case's own
-operating point). Defaults are a flat `1.0` voltage magnitude and zero
+operating point). `start = :case` takes the bus voltages and generator dispatch
+from the case file ([`CASE_START`](@ref)); for a solved case, that is a warm
+start from its solution. Defaults are a flat `1.0` voltage magnitude and zero
 elsewhere, which is what this model used before the recipe split.
 
 # Example
@@ -105,7 +107,7 @@ opf_args(filename; T::Type{TT} = Float64, backend = nothing, start = (;)) where 
 # that nothing downstream can specialize on.
 function opf_args(filename, ::Type{T}, backend = nothing, start = (;)) where {T}
     p = parse_ac_power_data(filename, T)
-    s = merge(_default_start(T), NamedTuple(start))
+    s = merge(_default_start(T), _start_overrides(start))
     bus, gen, arc, branch = p.bus, p.gen, p.arc, p.branch
     nbus, ngen, narc, nbranch = length(bus), length(gen), length(arc), length(branch)
 

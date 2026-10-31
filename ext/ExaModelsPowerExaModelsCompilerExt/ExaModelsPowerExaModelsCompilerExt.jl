@@ -46,11 +46,17 @@ load curve, which is why they are per-`N` in a way the static ones are not.
 
 `path` defaults to the shared depot entry `"@emp"`.
 
-The static models (`acp`, `acr`, `dcp`) also carry [`write_matpower_solution`](@ref)
-as the writer `matpower`: `acp_write_matpower(id, out, x, y, zl, zu, objective, status)`
-writes a solved MATPOWER case for the case file the instance was built from, and
-[`write_violations`](@ref) as the writer `violations`, which writes the largest
-constraint and bound violation of each group (`acp_write_violations`, same arguments).
+The static models (`acp`, `acr`, `dcp`) also carry three writers, each called as
+`acp_write_<name>(id, out, x, y, zl, zu, objective, status)` (likewise `acr_`, `dcp_`):
+
+- `matpower`, [`write_matpower_solution`](@ref): a solved MATPOWER case for the case file
+  the instance was built from.
+- `violations`, [`write_violations`](@ref): the largest constraint and bound violation of
+  each group.
+- `start`, [`write_case_start`](@ref): the starting point taken from the case file's
+  voltages and dispatch, one number per line, which a program solving with the library
+  reads back to warm-start from a solved case. It does not read `x`, `y`, `zl`, `zu`, but
+  they must be valid arrays of the model's sizes.
 
 ```julia
 compile_all(ExaModelsPower)                        # all six, into "@emp"
@@ -71,7 +77,8 @@ function ExaModelsCompiler.compile_all(
     chosen = ExaModelsCompiler.select(models; only = only, exclude = exclude)
     names = first.(chosen)
     writers = [name => (:matpower => ExaModelsPower.write_matpower_solution,
-                        :violations => ExaModelsPower.write_violations)
+                        :violations => ExaModelsPower.write_violations,
+                        :start => ExaModelsPower.write_case_start)
                for name in (:acp, :acr, :dcp) if name in names]
     return ExaModelsCompiler.compile_library(path, chosen...; writers, kwargs...)
 end
