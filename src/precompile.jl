@@ -35,6 +35,25 @@ end
 
 _workload_case() = joinpath(pkgdir(@__MODULE__), "data", "pglib_opf_case14_ieee.m")
 
+# What is usually done with a model after solving it: the solved MATPOWER case (from
+# host arrays, as a solver's results are copied back), the violations by group, and a
+# warm start from the case. At the starting point rather than a solution: the code
+# compiled is the same.
+function _use_results(case, form, m, vars, cons)
+    call(f, args...; kw...) = Base.invokelatest(f, args...; kw...)
+    x = NLPModels.get_x0(m)
+    xh = Array(x)
+    yh = zeros(eltype(xh), NLPModels.get_ncon(m))
+    zh = zeros(eltype(xh), length(xh))
+    mktempdir() do dir
+        call(write_matpower_solution, joinpath(dir, "solution.m"), case, vars, cons, xh, yh, zh, zh;
+             form, objective = 0.0, status = "LOCALLY_SOLVED")
+    end
+    call(opf_violations, m, x)
+    call(case_start, case, m)
+    return nothing
+end
+
 # Write `copies` disconnected copies of `case` into one MATPOWER file at `path`, with the
 # bus numbers of copy `c` offset by `c * 1000`. Built on a GPU, the larger model sorts its
 # sparsity patterns over more than one thread block, which runs kernel launches that
@@ -87,6 +106,9 @@ function _precompile_workload(backend; T = nothing)
     for form in (Polar(), Rect(), DC())
         m = build(case; kw..., form)
         _evaluate_callbacks(m)
+        # `opf_model`, which also returns the variable and constraint handles
+        m, vars, cons = Base.invokelatest(opf_model, case; kw..., form)
+        _use_results(case, form, m, vars, cons)
     end
     if backend !== nothing
         mktempdir() do dir
