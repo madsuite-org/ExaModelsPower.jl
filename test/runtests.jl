@@ -13,6 +13,7 @@ include("recipe_tests.jl")
 include("matpower_output_tests.jl")
 include("violations_tests.jl")
 include("case_start_tests.jl")
+include("zero_compile_tests.jl")
 
 # CI runs each backend, and the GOC3 smoke test, as a separate job, so the wall clock is
 # the slowest of them rather than their sum (they were 13.0, 14.8, 21.5 and 74.9 min in run
@@ -154,6 +155,15 @@ function runtests()
             test_matpower_output("../data/pglib_opf_case14_ieee.m")
             test_violations("../data/pglib_opf_case14_ieee.m")
             test_case_start("../data/pglib_opf_case14_ieee.m")
+            # The workload runs at precompile time, where coverage does not see it: run it
+            # here too, so that a change that breaks it fails a test rather than only a
+            # precompile, and its lines are counted.
+            @testset "precompile workload" begin
+                @test ExaModelsPower._precompile_workload(nothing) === nothing
+            end
+            @testset "no compilation at run time" begin
+                test_zero_compile()
+            end
 
             # Once for the whole suite, not once per case and formulation:
             # `compile_all` is minutes of juliac.
@@ -169,6 +179,15 @@ function runtests()
 
             backend === nothing || @testset "case start, $backend" begin
                 test_case_start_backend("../data/pglib_opf_case14_ieee.m", backend)
+            end
+            backend === nothing || @testset "precompile workload, $backend" begin
+                @test ExaModelsPower._precompile_workload(backend) === nothing
+            end
+            backend isa CUDABackend && @testset "no compilation at run time, $backend" begin
+                test_zero_compile("using CUDA; kw = (; backend = CUDABackend())")
+            end
+            backend isa CPU && @testset "no compilation at run time, $backend" begin
+                test_zero_compile("using KernelAbstractions; kw = (; backend = CPU())")
             end
 
             # Static AC

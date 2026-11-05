@@ -6,15 +6,17 @@
 import PrecompileTools
 import ExaModels: NLPModels
 
-# `meta` and the callbacks are reached through `invokelatest`, the way a solver behind a
-# model barrier (MadNLP's `ModelBarrier`) reaches them, so each is compiled as a
-# standalone method rather than only inlined into this function.
+# Calls made through `invokelatest`, as from the top level or from a solver behind a model
+# barrier (MadNLP's `ModelBarrier`), so that each is compiled as a standalone method
+# (keyword entry points included) rather than only inlined into the workload.
+_call(f, args...; kw...) = Base.invokelatest(f, args...; kw...)
+
 function _evaluate_callbacks(m)
     x = copy(NLPModels.get_x0(m))
     T = eltype(x)
     ncon, nnzj, nnzh = NLPModels.get_ncon(m), NLPModels.get_nnzj(m), NLPModels.get_nnzh(m)
     y = fill!(similar(x, ncon), zero(T))
-    call(f, args...; kw...) = Base.invokelatest(f, args...; kw...)
+    call = _call
     call(getproperty, m, :meta)
     call(NLPModels.jac_structure!, m, similar(x, Int, nnzj), similar(x, Int, nnzj))
     call(NLPModels.hess_structure!, m, similar(x, Int, nnzh), similar(x, Int, nnzh))
@@ -34,6 +36,34 @@ function _evaluate_callbacks(m)
 end
 
 _workload_case() = joinpath(pkgdir(@__MODULE__), "data", "pglib_opf_case14_ieee.m")
+
+# What is usually done with a model after solving it: the solved MATPOWER case (from
+# host arrays, as a solver's results are copied back), the violations by group, and a
+# warm start from the case. At the starting point rather than a solution: the code
+# compiled is the same.
+function _use_results(case, form, m, vars, cons)
+    call = _call
+    x = NLPModels.get_x0(m)
+    xh = Array(x)
+    yh = zeros(eltype(xh), NLPModels.get_ncon(m))
+    zh = zeros(eltype(xh), length(xh))
+    mktempdir() do dir
+        out(name) = joinpath(dir, name)
+        call(write_matpower_solution, out("solution.m"), case, vars, cons, xh, yh, zh, zh;
+             form, objective = 0.0, status = "LOCALLY_SOLVED")
+        # The forms that take the model, as a compiled (CPU) library carries them. They
+        # pass `x` to the model, so on a GPU they would need device arrays.
+        if x isa Array
+            call(write_matpower_solution, out("model.m"), case, m, xh, yh, zh, zh;
+                 objective = 0.0, status = "LOCALLY_SOLVED")
+            call(write_violations, out("violations.csv"), case, m, xh, yh, zh, zh)
+            call(write_case_start, out("start.txt"), case, m, xh, yh, zh, zh)
+        end
+    end
+    call(opf_violations, m, x)
+    call(case_start, case, m)
+    return nothing
+end
 
 # Write `copies` disconnected copies of `case` into one MATPOWER file at `path`, with the
 # bus numbers of copy `c` offset by `c * 1000`. Built on a GPU, the larger model sorts its
@@ -71,8 +101,9 @@ end
     _precompile_workload(backend; T = nothing)
 
 Build and evaluate the OPF models on `backend`, with the keyword combinations that
-`ac_opf_model` is usually called with. `T` is passed only when given (Metal needs
-`Float32`).
+`ac_opf_model` and `opf_model` are usually called with, and use their results as a solver's
+caller does (`write_matpower_solution`, `opf_violations`, `case_start`). `T` is passed
+only when given (Metal needs `Float32`).
 """
 function _precompile_workload(backend; T = nothing)
     case = _workload_case()
@@ -80,13 +111,18 @@ function _precompile_workload(backend; T = nothing)
     kw = T === nothing ? kw : (; kw..., T)
     # Called through `invokelatest`, as from the top level, so the keyword entry points
     # are compiled as standalone methods rather than only inlined into this function.
-    build(file; kws...) = first(Base.invokelatest(ac_opf_model, file; kws...))
+    build(file; kws...) = first(_call(ac_opf_model, file; kws...))
     m = build(case; kw...)                             # default form, no `form` keyword
     _evaluate_callbacks(m)
     backend === nothing && build(case; backend)        # an explicit `backend = nothing`
     for form in (Polar(), Rect(), DC())
         m = build(case; kw..., form)
         _evaluate_callbacks(m)
+        # `opf_model`, which also returns the variable and constraint handles; keyword
+        # order is part of the compiled signature, so both usual orders
+        m, vars, cons = _call(opf_model, case; kw..., form)
+        isempty(kw) || _call(opf_model, case; form, kw...)
+        _use_results(case, form, m, vars, cons)
     end
     if backend !== nothing
         mktempdir() do dir
