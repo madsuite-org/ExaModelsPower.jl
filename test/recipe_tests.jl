@@ -29,7 +29,8 @@ function test_recipe_equivalence(filename, form; T = Float64)
     # the algebra cannot hide behind one another.
     x = T[1 + T(0.01) * sin(i) for i = 1:m1.meta.nvar]
     y = T[T(0.01) * cos(i) for i = 1:m1.meta.ncon]
-    @test NLPModels.obj(m1, x) == NLPModels.obj(m2, x)
+    # The objective is a single sum, and the two builds may add its terms in different orders.
+    @test NLPModels.obj(m1, x) ≈ NLPModels.obj(m2, x) rtol = 8 * eps(T)
     @test NLPModels.grad(m1, x) == NLPModels.grad(m2, x)
     @test NLPModels.cons(m1, x) == NLPModels.cons(m2, x)
     @test NLPModels.jac_coord(m1, x) == NLPModels.jac_coord(m2, x)

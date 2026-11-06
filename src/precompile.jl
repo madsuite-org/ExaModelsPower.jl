@@ -11,29 +11,7 @@ import ExaModels: NLPModels
 # (keyword entry points included) rather than only inlined into the workload.
 _call(f, args...; kw...) = Base.invokelatest(f, args...; kw...)
 
-function _evaluate_callbacks(m)
-    x = copy(NLPModels.get_x0(m))
-    T = eltype(x)
-    ncon, nnzj, nnzh = NLPModels.get_ncon(m), NLPModels.get_nnzj(m), NLPModels.get_nnzh(m)
-    y = fill!(similar(x, ncon), zero(T))
-    call = _call
-    call(getproperty, m, :meta)
-    call(NLPModels.jac_structure!, m, similar(x, Int, nnzj), similar(x, Int, nnzj))
-    call(NLPModels.hess_structure!, m, similar(x, Int, nnzh), similar(x, Int, nnzh))
-    call(NLPModels.obj, m, x)
-    call(NLPModels.grad!, m, x, similar(x))
-    call(NLPModels.cons!, m, x, similar(x, ncon))
-    call(NLPModels.jac_coord!, m, x, similar(x, nnzj))
-    call(NLPModels.hess_coord!, m, x, y, similar(x, nnzh); obj_weight = one(T))
-    call(NLPModels.jprod!, m, x, similar(x), similar(x, ncon))
-    call(NLPModels.jtprod!, m, x, similar(x, ncon), similar(x))
-    # MadNLP passes a view of a longer buffer when the model has no fixed variables
-    H = similar(x, nnzh + 1)
-    call(NLPModels.hess_coord!, m, x, y, view(H, 1:nnzh); obj_weight = one(T))
-    J = similar(x, nnzj + 1)
-    call(NLPModels.jac_coord!, m, x, view(J, 1:nnzj))
-    return nothing
-end
+_evaluate_callbacks(m) = ExaModels.precompile_callbacks(m; prod = true)
 
 _workload_case() = joinpath(pkgdir(@__MODULE__), "data", "pglib_opf_case14_ieee.m")
 
@@ -115,9 +93,11 @@ function _precompile_workload(backend; T = nothing)
     m = build(case; kw...)                             # default form, no `form` keyword
     _evaluate_callbacks(m)
     backend === nothing && build(case; backend)        # an explicit `backend = nothing`
+    _call(dcopf_model, case; kw...)
     for form in (Polar(), Rect(), DC())
         m = build(case; kw..., form)
         _evaluate_callbacks(m)
+        isempty(kw) || build(case; form, kw...)
         # `opf_model`, which also returns the variable and constraint handles; keyword
         # order is part of the compiled signature, so both usual orders
         m, vars, cons = _call(opf_model, case; kw..., form)
