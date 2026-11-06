@@ -17,7 +17,6 @@ PowerModels = "c36e90e8-916a-50a6-bd94-075b64ef4655"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [sources]
-# `precompile_callbacks` is on ExaModels main and in no release; this pin becomes a version bound at the next release.
-ExaModels = {rev = "4dec7cf9e004fcffcd3ecc8c565a91d8543eaaaf", url = "https://github.com/madsuite-org/ExaModels.jl"}
+# ExaModelsCompiler 0.3.0 is not registered yet.
 ExaModelsCompiler = {rev = "4dec7cf9e004fcffcd3ecc8c565a91d8543eaaaf", url = "https://github.com/madsuite-org/ExaModels.jl", subdir = "ExaModelsCompiler"}
 CNLPModels = {rev = "master", url = "https://github.com/madsuite-org/CNLPModels.jl"}

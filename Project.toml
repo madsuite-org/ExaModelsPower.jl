@@ -1,6 +1,6 @@
 name = "ExaModelsPower"
 uuid = "2fff4b78-0b6c-428d-bac8-85ccea8c4bdf"
-version = "0.4.7"
+version = "0.4.8"
 
 [deps]
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
@@ -27,10 +27,6 @@ ExaModelsPowerKernelAbstractionsExt = ["ExaModels", "KernelAbstractions", "Linea
 ExaModelsPowerMetalExt = ["Metal", "ExaModels", "KernelAbstractions"]
 ExaModelsPoweroneAPIExt = ["oneAPI", "ExaModels", "KernelAbstractions"]
 ExaModelsPowerExaModelsCompilerExt = "ExaModelsCompiler"
-
-[sources]
-# `precompile_callbacks` is on ExaModels main and in no release; this pin becomes a version bound at the next release.
-ExaModels = {rev = "4dec7cf9e004fcffcd3ecc8c565a91d8543eaaaf", url = "https://github.com/madsuite-org/ExaModels.jl"}
 
 [compat]
 AMDGPU = "2"
