@@ -26,6 +26,10 @@ ExaModelsPowerMetalExt = ["Metal", "ExaModels", "KernelAbstractions"]
 ExaModelsPoweroneAPIExt = ["oneAPI", "ExaModels", "KernelAbstractions"]
 ExaModelsPowerExaModelsCompilerExt = "ExaModelsCompiler"
 
+[sources]
+# `precompile_callbacks` is on ExaModels main and in no release; this pin becomes a version bound at the next release.
+ExaModels = {rev = "e61ec619032821b82fb179be8b7c1e71c579ec03", url = "https://github.com/madsuite-org/ExaModels.jl"}
+
 [compat]
 AMDGPU = "2"
 CUDA = "6"
@@ -33,8 +37,8 @@ KernelAbstractions = "0.9, 0.10"
 Metal = "1.9"
 oneAPI = "2"
 PrecompileTools = "1"
-ExaModels = "0.12, 0.13, 0.14"
-ExaModelsCompiler = "0.1.1"
+ExaModels = "0.15"
+ExaModelsCompiler = "0.3"
 ExaPowerIO = "0.3"
 JSON = "0.21"
 PowerIO = "0.11.6"

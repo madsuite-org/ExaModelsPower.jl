@@ -9,6 +9,9 @@ import PrecompileTools
 
 PrecompileTools.@compile_workload begin
     ExaModelsPower._precompile_workload(KernelAbstractions.CPU())
+    # Loading KernelAbstractions invalidates CPU code in the package's own image; this image
+    # loads after those methods, so what it stores stays valid.
+    ExaModelsPower._precompile_workload(nothing)
 end
 
 end
