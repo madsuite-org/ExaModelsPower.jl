@@ -1,6 +1,9 @@
 # Precompiles OPF model building and evaluation on the KernelAbstractions CPU backend (see
 # src/precompile.jl). `ExaModels` is a trigger so that ExaModels' KernelAbstractions
-# extension is loaded while this one precompiles.
+# extension is loaded while this one precompiles. `LinearAlgebra` and `SparseArrays` are
+# triggers so that KernelAbstractions' extensions for them are too: they add `get_backend`
+# methods, and code stored without them is rejected when this image loads, since both are
+# always loaded by then.
 module ExaModelsPowerKernelAbstractionsExt
 
 import ExaModelsPower

@@ -15,5 +15,5 @@ ExaModels = "0.15"
 
 [sources]
 # `precompile_callbacks` is on ExaModels main and in no release; this pin becomes a version bound at the next release.
-ExaModels = {rev = "e61ec619032821b82fb179be8b7c1e71c579ec03", url = "https://github.com/madsuite-org/ExaModels.jl"}
+ExaModels = {rev = "4dec7cf9e004fcffcd3ecc8c565a91d8543eaaaf", url = "https://github.com/madsuite-org/ExaModels.jl"}
 ExaModelsPower = {path = ".."}

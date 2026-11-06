@@ -14,27 +14,31 @@ PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Metal = "dde4c033-4e86-420c-a63e-0dd931031962"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 oneAPI = "8f75cd03-7ff8-4ecb-9b8f-daf728133b1b"
 ExaModelsCompiler = "3d1e9a26-5b74-4f0c-9a2b-7c8f4e11d3a7"
 
 [extensions]
 ExaModelsPowerAMDGPUExt = ["AMDGPU", "ExaModels", "KernelAbstractions"]
 ExaModelsPowerCUDAExt = ["CUDA", "ExaModels", "KernelAbstractions"]
-ExaModelsPowerKernelAbstractionsExt = ["ExaModels", "KernelAbstractions"]
+ExaModelsPowerKernelAbstractionsExt = ["ExaModels", "KernelAbstractions", "LinearAlgebra", "SparseArrays"]
 ExaModelsPowerMetalExt = ["Metal", "ExaModels", "KernelAbstractions"]
 ExaModelsPoweroneAPIExt = ["oneAPI", "ExaModels", "KernelAbstractions"]
 ExaModelsPowerExaModelsCompilerExt = "ExaModelsCompiler"
 
 [sources]
 # `precompile_callbacks` is on ExaModels main and in no release; this pin becomes a version bound at the next release.
-ExaModels = {rev = "e61ec619032821b82fb179be8b7c1e71c579ec03", url = "https://github.com/madsuite-org/ExaModels.jl"}
+ExaModels = {rev = "4dec7cf9e004fcffcd3ecc8c565a91d8543eaaaf", url = "https://github.com/madsuite-org/ExaModels.jl"}
 
 [compat]
 AMDGPU = "2"
 CUDA = "6"
 KernelAbstractions = "0.9, 0.10"
+LinearAlgebra = "1"
 Metal = "1.9"
+SparseArrays = "1"
 oneAPI = "2"
 PrecompileTools = "1"
 ExaModels = "0.15"
