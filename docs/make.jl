@@ -43,7 +43,7 @@ makedocs(;
     remotes = nothing,
     authors = "Sungho Shin, Sanjay Johnson",
     format = Documenter.HTML(
-        assets = ["assets/citations.css"],
+        assets = ["assets/favicon.ico", "assets/citations.css"],
         prettyurls = true,
         sidebar_sitename = true,
         collapselevel = 1,
