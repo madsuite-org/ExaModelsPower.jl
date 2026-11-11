@@ -15,13 +15,13 @@ using ExaModels
 model, vars, cons = ac_opf_model(
     "pglib_opf_case118_ieee.m";
     backend = CUDABackend(),
-    form = :polar,
+    form = Polar(),
     T = Float64
 );
 model
 
 # Once the model is built, we can generate a solution using MadNLP.
-result = madnlp(model; tol=1e-6, kkt_system = MadNLP.SparseCondensedKKTSystem, linear_solver = MadNLPGPU.CUDSSSolver)
+result = madnlp(model; tol=1e-6)
 
 # Once a solution has been generated, the values of any of the variables in the model can be unpacked using the vars NamedTuple.
 solution(result, vars.vm)[1:10]
@@ -32,7 +32,7 @@ result.objective
 # ExaModelsPower supports solving the OPF in either polar or rectangular coordinates.
 model, vars, cons = ac_opf_model(
     "pglib_opf_case118_ieee.m";
-    form = :rect
+    form = Rect()
 )
 result = madnlp(model; tol=1e-6)
 result.objective
