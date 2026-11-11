@@ -52,4 +52,4 @@ makedocs(;
     clean = false
 )
 
-deploydocs(repo = "github.com/MadNLP/ExaModelsPower.jl.git"; push_preview = true)
+deploydocs(repo = "github.com/madsuite-org/ExaModelsPower.jl.git"; push_preview = true)
