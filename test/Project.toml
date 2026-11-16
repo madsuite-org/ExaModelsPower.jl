@@ -19,4 +19,3 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [sources]
 CNLPModels = {rev = "master", url = "https://github.com/madsuite-org/CNLPModels.jl"}
-PowerIO = {rev = "trim-safe-bridge", url = "https://github.com/eigenergy/PowerIO.jl"}

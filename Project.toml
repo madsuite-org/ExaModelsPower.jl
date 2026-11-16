@@ -41,8 +41,5 @@ ExaModels = "0.15"
 ExaModelsCompiler = "0.3"
 JSON = "0.21"
 LazyArtifacts = "1"
-PowerIO = "0.11.6"
+PowerIO = "0.11.7, 0.12"
 julia = "1.11"
-
-[sources]
-PowerIO = {rev = "trim-safe-bridge", url = "https://github.com/eigenergy/PowerIO.jl"}
