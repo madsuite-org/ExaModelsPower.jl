@@ -84,10 +84,8 @@ caller does (`write_matpower_solution`, `opf_violations`, `case_start`). `T` is 
 only when given (Metal needs `Float32`).
 """
 function _precompile_workload(backend; T = nothing)
-    # Every model starts from a parse, which needs PowerIO's native library, a lazy
-    # artifact: on a first install this fetches it. Offline, the workload is skipped
-    # rather than failing the precompilation.
-    PowerIO.library_available() || return nothing
+    # The workload's case is a MATPOWER file, which ExaPowerIO reads, so it needs no
+    # native library and runs offline.
     case = _workload_case()
     kw = backend === nothing ? (;) : (; backend)
     kw = T === nothing ? kw : (; kw..., T)

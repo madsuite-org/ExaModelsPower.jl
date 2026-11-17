@@ -36,7 +36,7 @@ function update_load_data(busarray, curve)
         "a load curve of " * string(length(curve)) * " periods was given for " * string(N)))
     for t in 1:N, x in axes(busarray, 1)
         b = busarray[x, t].b
-        busarray[x, t] = (; b = merge(b, (; pd = oftype(b.pd, b.pd * curve[t]),
+        busarray[x, t] = (; b = _with(b, (; pd = oftype(b.pd, b.pd * curve[t]),
                                              qd = oftype(b.qd, b.qd * curve[t]))), t)
     end
     return busarray
@@ -56,7 +56,7 @@ function update_load_data(busarray, pd, qd, baseMVA)
         " were asked for"))
     for t in 1:N, x in 1:nbus
         b = busarray[x, t].b
-        busarray[x, t] = (; b = merge(b, (; pd = oftype(b.pd, pd[x, t] / baseMVA),
+        busarray[x, t] = (; b = _with(b, (; pd = oftype(b.pd, pd[x, t] / baseMVA),
                                              qd = oftype(b.qd, qd[x, t] / baseMVA))), t)
     end
     return busarray

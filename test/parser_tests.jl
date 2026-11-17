@@ -34,6 +34,7 @@ mp_append(case, text) = (path = tempname() * ".m"; write(path, read(case, String
 # format and read back passes through MW and per unit again.
 flat(x::Number) = [Float64(x)]
 flat(x::Union{Tuple,NamedTuple}) = reduce(vcat, map(flat, Tuple(x)); init = Float64[])
+flat(x) = flat(ExaModelsPower._fields(x))   # a row struct
 rows_close(a, b) = length(a) == length(b) &&
     all(isapprox(flat(r), flat(s); rtol = 1e-12, atol = 1e-12) for (r, s) in zip(a, b))
 
@@ -136,6 +137,20 @@ function test_parser(case14)
         PowerIO.apply_updates!(m, [PowerIO.set_load_active_power(PowerIO.ComponentId("load", "bus-2"),
                                                                  PowerIO.ActivePower(megawatts = 30.0))])
         @test ExaModelsPower.parse_ac_power_data(m).bus[2].pd ≈ 0.30
+    end
+
+    # A MATPOWER file is read through ExaPowerIO's own filtering where it can be, and
+    # through `_in_service!` otherwise; PowerIO reads the same file to the same tables.
+    @testset "parse: MATPOWER paths agree" begin
+        for c in (case14, "../data/pglib_opf_case5_pjm.m", "../data/pglib_opf_case3_lmbd.m")
+            fast = ExaModelsPower._matpower_tables(c, Float64)
+            full = ExaModelsPower._tables(ExaModelsPower._exapowerio_rows(c, Float64), Float64)
+            pio = ExaModelsPower.parse_ac_power_data(PowerIO.parse(PowerIO.BalancedNetwork, c), Float64)
+            for k in keys(fast)
+                @test rows_close(getfield(fast, k), getfield(full, k))
+                @test rows_close(getfield(fast, k), getfield(pio, k))
+            end
+        end
     end
 
     @testset "parse: other formats" begin
