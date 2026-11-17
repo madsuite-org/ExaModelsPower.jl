@@ -4,9 +4,8 @@
 # warm start from its solution.
 
 # Named functions rather than closures, so that the start survives ahead-of-time
-# compilation (see `opf_start`). The parse keeps VA in degrees, as the case file gives
-# it; the model's angles are in radians.
-_case_va(d) = d.va0 .* (pi / 180)
+# compilation (see `opf_start`). The parse gives VA in radians, as the model uses it.
+_case_va(d) = d.va0
 _case_vm(d) = d.vm0
 _case_vr(d) = d.vm0 .* cos.(_case_va(d))
 _case_vim(d) = d.vm0 .* sin.(_case_va(d))

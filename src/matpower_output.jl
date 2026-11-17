@@ -32,6 +32,8 @@ else in the file is kept as it was, and `objective` and `status` go into a
 comment at the top.
 """
 function write_matpower_solution(out::AbstractString, case_file::AbstractString, vars, cons, x, y, zl, zu; kwargs...)
+    # Refused before `out` is opened, so a non-MATPOWER case leaves no file.
+    _mp_is_matpower(_mp_readlines(_case_path(case_file))) || throw(_mp_not_matpower(case_file))
     # Not `open(f, out, "w")`: it splats its arguments, which `--trim=safe` refuses.
     io = open(out, "w")
     try
@@ -66,7 +68,9 @@ function write_matpower_solution(
     io::IO, case_file::AbstractString, vars, cons, x, y, zl, zu;
     form::OPFForm = Polar(), objective = NaN, status::AbstractString = "",
 )
-    lines = _mp_readlines(_mp_case_path(case_file))
+    lines = _mp_readlines(_case_path(case_file))
+    # Refused before anything is written.
+    _mp_is_matpower(lines) || throw(_mp_not_matpower(case_file))
     base = _mp_base_mva(lines)
     s = _mp_columns(form, vars, cons, x, y, zl, zu, base)
     degree = π / 180
@@ -75,6 +79,8 @@ function write_matpower_solution(
     println(io, "%% Result columns in MATPOWER's savecase layout and units.")
     table = ""
     k = 0                      # active rows seen in the current table
+    n = 0                      # rows of the solution for the current table
+    tables = 0
     bus_vm = Dict{Int,Float64}()
     for line in lines
         if isempty(table)
@@ -82,12 +88,15 @@ function write_matpower_solution(
             if m !== nothing
                 table = m.captures[1]
                 k = 0
+                n = _mp_rows(table, s)
+                tables += 1
             end
             println(io, line)
             continue
         end
         code, comment = _mp_split_comment(line)
         if occursin(']', code)
+            k == n || throw(_mp_mismatch(table, n, k))
             table = ""
             println(io, line)
             continue
@@ -104,7 +113,7 @@ function write_matpower_solution(
         if table == "bus"
             # BUS_TYPE 4: isolated, not in the model.
             if parse(Int, out[2]) != 4
-                k += 1
+                k = _mp_next(k, n, table)
                 out[8] = _mp_num(s.vm[k]); out[9] = _mp_num(s.va[k] / degree)
                 bus_vm[parse(Int, out[1])] = s.vm[k]
                 append!(out, _mp_num.((s.lam_p[k], s.lam_q[k], s.mu_vmax[k], s.mu_vmin[k])))
@@ -113,7 +122,7 @@ function write_matpower_solution(
             end
         elseif table == "gen"
             if parse(Float64, out[8]) != 0
-                k += 1
+                k = _mp_next(k, n, table)
                 out[2] = _mp_num(s.pg[k] * base); out[3] = _mp_num(s.qg[k] * base)
                 out[6] = _mp_num(get(bus_vm, parse(Int, out[1]), parse(Float64, out[6])))
                 _mp_pad!(out, 21)
@@ -126,7 +135,7 @@ function write_matpower_solution(
         elseif table == "branch"
             _mp_pad!(out, 13)
             if parse(Float64, out[11]) != 0
-                k += 1
+                k = _mp_next(k, n, table)
                 append!(out, _mp_num.((s.pf[k] * base, s.qf[k] * base, s.pt[k] * base, s.qt[k] * base)))
                 append!(out, _mp_num.((s.mu_sf[k], s.mu_st[k], s.mu_angmin[k], s.mu_angmax[k])))
             else
@@ -135,8 +144,22 @@ function write_matpower_solution(
         end
         println(io, "\t", join(out, '\t'), ";", isempty(comment) ? "" : "\t" * comment)
     end
+    tables == 3 || throw(_mp_not_matpower(case_file))
     return io
 end
+
+_mp_is_matpower(lines) = count(l -> occursin(r"^\s*mpc\.(bus|gen|branch)\s*=\s*\[", l), lines) == 3
+_mp_not_matpower(case_file) = ArgumentError(case_file * " is not a MATPOWER case: the solution " *
+                                            "is written into the case file's own bus, gen and branch tables")
+
+# Each in-service row of a table takes the next entry of the solution, so the
+# two must agree in number. A solution of another case, or of a network edited
+# after it was read, is refused rather than written into the wrong rows.
+_mp_rows(table, s) = table == "bus" ? length(s.vm) : table == "gen" ? length(s.pg) : length(s.pf)
+_mp_next(k, n, table) = k < n ? k + 1 : throw(_mp_mismatch(table, n, k + 1))
+_mp_mismatch(table, n, k) = DimensionMismatch(
+    "the solution has " * string(n) * " " * table * " rows but the case file has " *
+    (k > n ? "more than " * string(n) : string(k)) * " in service")
 
 _mp_blk(v, a) = view(a, (v.offset + 1):(v.offset + ExaModels.total(v.size)))
 
@@ -207,9 +230,6 @@ function _mp_columns(::DC, vars, cons, x, y, zl, zu, base)
         mu_angmin = max.(.-lang, 0) .* degree, mu_angmax = max.(lang, 0) .* degree,
     )
 end
-
-# A name that is not a file is a PGLib case, as `opf_args` reads it.
-_mp_case_path(f) = isfile(f) ? f : joinpath(ExaPowerIO.get_path(:pglib), f)
 
 # `readlines` without `eachline`, whose `ondone` closure `--trim=safe` cannot resolve.
 function _mp_readlines(path)
