@@ -107,6 +107,12 @@ function test_parser(case14)
         @test_throws ArgumentError ExaModelsPower.parse_ac_power_data(isolated)    # gen and branch at bus 8
         @test_throws ArgumentError ExaModelsPower.parse_ac_power_data(
             mp_map(rows -> withcol(rows, r -> r[1] == "8", 8, "0"), isolated, "gen"))  # branch 7-8 still in service
+        # The highest and lowest bus ids isolated: the fast MATPOWER read fails on its
+        # bus lookup, and the case is read again unfiltered to report it.
+        for b in ("14", "1")
+            edge = mp_map(rows -> withcol(rows, r -> r[1] == b, 2, "4"), case14, "bus")
+            @test_throws ArgumentError ExaModelsPower.parse_ac_power_data(edge)
+        end
         # MATPOWER's gencost is a matrix: the polynomial rows are padded to the
         # piecewise row's width.
         piecewise = mp_map(rows -> [[["1", "0", "0", "2", "0", "0", "100", "2000"]];
@@ -201,7 +207,9 @@ function test_parser(case14)
                                                                v, c, x, y, z, z)
         json = tempname() * ".json"
         PowerIO.emit(PowerIO.parse(PowerIO.PioModule{PowerIO.BalancedNetwork}, case14), "powermodels-json", json)
-        @test_throws ArgumentError write_matpower_solution(tempname() * ".m", json, v, c, x, y, z, z)
+        out = tempname() * ".m"
+        @test_throws ArgumentError write_matpower_solution(out, json, v, c, x, y, z, z)
+        @test !ispath(out)    # refused before anything is written
     end
 
     @testset "multi-period loads" begin

@@ -72,6 +72,10 @@ end
 # lookup), refuse a piecewise-linear cost, or filter and renumber storage. A case
 # with any of these is read again unfiltered, and `_in_service!` handles it.
 function _matpower_tables(path::String, ::Type{T}) where {T}
+    # An element at an isolated bus whose id is the file's lowest or highest falls
+    # outside ExaPowerIO's id-to-position table, and its lookup raises a
+    # BoundsError: that relies on the lookup being bounds-checked, which the test
+    # with such a bus ("parse: refused") pins down.
     raw = try
         ExaPowerIO.parse_matpower(T, path)
     catch err

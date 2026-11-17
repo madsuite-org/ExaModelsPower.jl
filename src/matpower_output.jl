@@ -32,6 +32,8 @@ else in the file is kept as it was, and `objective` and `status` go into a
 comment at the top.
 """
 function write_matpower_solution(out::AbstractString, case_file::AbstractString, vars, cons, x, y, zl, zu; kwargs...)
+    # Refused before `out` is opened, so a non-MATPOWER case leaves no file.
+    _mp_is_matpower(_mp_readlines(_case_path(case_file))) || throw(_mp_not_matpower(case_file))
     # Not `open(f, out, "w")`: it splats its arguments, which `--trim=safe` refuses.
     io = open(out, "w")
     try
@@ -67,6 +69,8 @@ function write_matpower_solution(
     form::OPFForm = Polar(), objective = NaN, status::AbstractString = "",
 )
     lines = _mp_readlines(_case_path(case_file))
+    # Refused before anything is written.
+    _mp_is_matpower(lines) || throw(_mp_not_matpower(case_file))
     base = _mp_base_mva(lines)
     s = _mp_columns(form, vars, cons, x, y, zl, zu, base)
     degree = π / 180
@@ -140,10 +144,13 @@ function write_matpower_solution(
         end
         println(io, "\t", join(out, '\t'), ";", isempty(comment) ? "" : "\t" * comment)
     end
-    tables == 3 || throw(ArgumentError(case_file * " is not a MATPOWER case: the solution " *
-                                       "is written into the case file's own bus, gen and branch tables"))
+    tables == 3 || throw(_mp_not_matpower(case_file))
     return io
 end
+
+_mp_is_matpower(lines) = count(l -> occursin(r"^\s*mpc\.(bus|gen|branch)\s*=\s*\[", l), lines) == 3
+_mp_not_matpower(case_file) = ArgumentError(case_file * " is not a MATPOWER case: the solution " *
+                                            "is written into the case file's own bus, gen and branch tables")
 
 # Each in-service row of a table takes the next entry of the solution, so the
 # two must agree in number. A solution of another case, or of a network edited
