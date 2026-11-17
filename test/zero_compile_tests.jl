@@ -44,10 +44,10 @@ mktempdir() do dir
 end
 """
 
-function test_zero_compile(backend_code = "kw = (;)")
+function test_zero_compile(backend_code = "kw = (;)"; broken = false)
     code = replace(ZERO_COMPILE_SCRIPT, "BACKEND" => backend_code)
     compiled, probe = compiled_at_run_time(code, "ExaModelsPower")
     @test probe
     isempty(compiled) || foreach(l -> println(first(l, 300)), compiled)
-    @test isempty(compiled)
+    @test isempty(compiled) broken = broken
 end

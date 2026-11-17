@@ -201,8 +201,14 @@ function runtests()
             backend isa CUDABackend && @testset "no compilation at run time, $backend" begin
                 test_zero_compile("using CUDA; kw = (; backend = CUDABackend())")
             end
+            # KernelAbstractions 0.10.7 runs the CPU (POCL) backend through ThreadTeams 1.4,
+            # whose `new_job_closure` holds an edge that fails verification when its package
+            # image loads. Every stored POCL kernel launch is then rejected, KernelAbstractions'
+            # own and ours (`cons!`, `opf_violations`), and compiles again at run time. With
+            # KernelAbstractions 0.10.5 the same workload loads without compiling.
             backend isa CPU && @testset "no compilation at run time, $backend" begin
-                test_zero_compile("using KernelAbstractions; kw = (; backend = CPU())")
+                test_zero_compile("using KernelAbstractions; kw = (; backend = CPU())";
+                                  broken = pkgversion(KernelAbstractions) >= v"0.10.7")
             end
 
             # Static AC
