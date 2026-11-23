@@ -1,0 +1,20 @@
+# The compiled library of every model (cnlp ABI, CPU and CUDA), built and checked on
+# every change. Pushes to main publish it as the rolling `nightly` release; a version tag
+# (TagBot, on registration) attaches it to that release. Installed with
+# `cnlp install emp` or `cnlp install emp@nightly` (https://cnlplib.madsuite.org).
+name: Library
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  library:
+    uses: madsuite-org/cnlplib/.github/workflows/library.yml@main
+    with:
+      name: emp
+    permissions:
+      contents: write

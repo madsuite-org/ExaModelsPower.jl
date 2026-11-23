@@ -142,6 +142,32 @@ end
 model, vars, cons = mpopf_model("pglib_opf_case3_lmbd.m", curve; user_callback = add_electrolyzers) # user_callback function added after initial mpopf model is constructed
 ```
 
+## Compiled library
+
+The OPF models (`acp`, `acr`, `dcp`, and the multi-period `mpacp`, `mpacr`, `mpdcp`) are
+also published as one compiled shared library implementing the
+[cnlp ABI](https://cnlplib.madsuite.org), with CPU and CUDA evaluation and no Julia needed
+to use it. Each model is instantiated from a MATPOWER case file, and the static models
+write MATPOWER solutions. Each push to `main` updates the `nightly` release, and each
+registered version gets its own release:
+
+```sh
+cnlp install emp pglib       # the library and the PGLib-OPF cases (https://cnlplib.madsuite.org)
+cnlp install emp@nightly     # the latest build of main
+cnlp solve @emp:acp case118_ieee -o matpower:sol.m
+```
+
+From Julia, through [CNLPLib.jl](https://github.com/madsuite-org/CNLPLib.jl):
+
+```julia
+using CNLPLib, MadNLP
+madnlp(CNLPModel("@emp", :acp, "pglib_opf_case118_ieee.m"))
+```
+
+To build the library yourself, with ExaModelsCompiler loaded:
+`compile_all(ExaModelsPower; path = "emp", bundle = true)` (add `device = :cuda` for the
+CUDA tier).
+
 ## Citing ExaModelsPower.jl
 
 If you use ExaModelsPower.jl in your research, we would greatly appreciate your citing it.
