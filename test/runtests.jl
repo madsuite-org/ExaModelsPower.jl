@@ -1,10 +1,10 @@
 using Test, ExaModelsPower, MadNLP, MadNLPGPU, KernelAbstractions, CUDA, CUDSS, PowerModels, Ipopt, JuMP, ExaModels, NLPModelsJuMP
-# Import only `CNLPModel`, not all of CNLPModels: it exports `solution` and so
+# Import only `CNLPModel`, not all of CNLPLib: it exports `solution` and so
 # does ExaModels, and a name exported by two loaded packages resolves to
 # neither -- which took out 24 tests that call `solution` unqualified.
 using ExaModelsCompiler
-using CNLPModels: CNLPModel
-import CNLPModels
+using CNLPLib: CNLPModel
+import CNLPLib
 import NLPModels
 import JSON
 
