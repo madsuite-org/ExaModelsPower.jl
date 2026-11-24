@@ -1,5 +1,5 @@
 [deps]
-CNLPModels = "e8ddee8d-ce21-405b-9ec9-45cea2c1b284"
+CNLPLib = "e8ddee8d-ce21-405b-9ec9-45cea2c1b284"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 CUDSS = "45b445bb-4962-46a0-9369-b4df9d0f772e"
 ExaModels = "1037b233-b668-4ce9-9b63-f9f681f55dd2"
@@ -17,4 +17,6 @@ PowerModels = "c36e90e8-916a-50a6-bd94-075b64ef4655"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [sources]
-CNLPModels = {rev = "master", url = "https://github.com/madsuite-org/CNLPModels.jl"}
+# CNLPLib (formerly CNLPModels) is not registered yet.
+CNLPLib = {rev = "master", url = "https://github.com/madsuite-org/CNLPLib.jl"}
+

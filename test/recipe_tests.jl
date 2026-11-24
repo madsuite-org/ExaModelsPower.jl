@@ -92,8 +92,8 @@ function test_aot()
     @test (m3.meta.nvar, m3.meta.ncon) == (ref3.meta.nvar, ref3.meta.ncon)
 
     # The compiled MATPOWER writer writes what `write_matpower_solution` does.
-    lib = CNLPModels.load(r.libpath)
-    dl(s) = CNLPModels.Libdl.dlsym(lib.handle, s)
+    lib = CNLPLib.load(r.libpath)
+    dl(s) = CNLPLib.Libdl.dlsym(lib.handle, s)
     for (p, form) in (("acp", Polar()), ("acr", Rect()), ("dcp", DC()))
         @test ccall(dl(Symbol(p, "_nwriters")), Cint, ()) == 3
         m, v, c = opf_model(case; form)
