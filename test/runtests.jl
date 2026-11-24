@@ -187,7 +187,14 @@ function runtests()
                 test_zero_compile("using CUDA; kw = (; backend = CUDABackend())")
             end
             backend isa CPU && @testset "no compilation at run time, $backend" begin
-                test_zero_compile("using KernelAbstractions; kw = (; backend = CPU())")
+                # On the KernelAbstractions CPU (POCL) backend, a kernel launch goes
+                # through ThreadTeams (1.4, a KernelAbstractions 0.10 dependency), which
+                # defines a closure method at run time (`ThreadTeams.new_job_closure`).
+                # Precompiled code that reaches a launch therefore fails edge verification
+                # when the package images load and is compiled again; `opf_violations`
+                # evaluates the constraints, so it is. Nothing here can keep it cached.
+                test_zero_compile("using KernelAbstractions; kw = (; backend = CPU())";
+                                  broken = ("opf_violations",))
             end
 
             # Static AC

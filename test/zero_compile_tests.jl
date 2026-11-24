@@ -44,10 +44,17 @@ mktempdir() do dir
 end
 """
 
-function test_zero_compile(backend_code = "kw = (;)")
+# `broken` names functions whose run-time compilation is known and caused upstream: they
+# are checked with `@test_broken`, so the test reports when the cause goes away, and every
+# other function is still checked with `@test`.
+function test_zero_compile(backend_code = "kw = (;)"; broken = ())
     code = replace(ZERO_COMPILE_SCRIPT, "BACKEND" => backend_code)
     compiled, probe = compiled_at_run_time(code, "ExaModelsPower")
     @test probe
     isempty(compiled) || foreach(l -> println(first(l, 300)), compiled)
-    @test isempty(compiled)
+    known(l) = any(f -> occursin("typeof(ExaModelsPower.$f)", l), broken)
+    @test isempty(filter(!known, compiled))
+    for f in broken
+        @test_broken !any(l -> occursin("typeof(ExaModelsPower.$f)", l), compiled)
+    end
 end
