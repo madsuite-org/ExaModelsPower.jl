@@ -33,7 +33,7 @@ function test_violations(case)
             @test occursin(" buses, ", ri) && occursin(" generators, ", ri) && occursin(" branches; ", ri)
             rs = opf_report_solution(case, m, r.solution, r.multipliers, r.multipliers_L, r.multipliers_U;
                                      objective = r.objective, status = "solved")
-            @test startswith(rs, "generation cost ")
+            @test startswith(rs, "generation cost " * string(round(r.objective; sigdigits = 10)) * ";")
             @test length(split(rs, '\n')) == 1 + length(v)          # one line per group
             @test occursin("power balance", rs) && occursin("generation", rs)
         end

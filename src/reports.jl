@@ -6,7 +6,7 @@
 # the size of block `name` of the model, 0 when its formulation has none
 _nblock(model, ::Val{name}) where {name} =
     hasfield(typeof(model.refs), name) ? ExaModels.total(getfield(model.refs, name).size)::Int : 0
-_sig(v) = string(round(Float64(v); sigdigits = 3))
+_sig(v, d = 3) = string(round(Float64(v); sigdigits = d))
 
 """
     opf_report_instance(case_file, model)
@@ -34,7 +34,7 @@ The signature of a report (`compile_all`'s `reports`).
 function opf_report_solution(case_file::AbstractString, model::ExaModels.ExaModel, x, y, zl, zu;
                              objective = NaN, status::AbstractString = "")
     v = opf_violations(model, x)
-    return "generation cost " * _sig(objective) * "; largest violation by group:" *
+    return "generation cost " * _sig(objective, 10) * "; largest violation by group:" *
         "\n  power balance     " * _sig(v.power_balance) *
         "\n  power flow        " * _sig(v.power_flow) *
         "\n  branch flow       " * _sig(v.branch_flow) *
