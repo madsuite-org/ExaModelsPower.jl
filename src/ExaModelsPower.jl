@@ -44,18 +44,14 @@ export dcopf_recipe
 export mpopf_recipe, mpopf_args
 export mpopf_args_default, MPOPF_DEFAULT_CURVE
     
-# A `const Ref`, not a plain global. `global TMPDIR = ...` leaves the binding
-# typed `Any`, and `mkpath(TMPDIR::Any)` is then an unresolved call that
-# `juliac --trim=safe` refuses — `__init__` is part of the compiled image.
+# A `const Ref`, not a plain global: `__init__` is part of a compiled (`juliac`) image,
+# where an untyped global is an unresolved call. The directory is not created here: in a
+# compiled library `@__DIR__` is the path on the machine that built it, which another
+# machine may not be allowed to create.
 const TMPDIR = Ref{String}("")
 
 function __init__()
-    if haskey(ENV, "EXA_MODELS_DEPOT")
-        TMPDIR[] = ENV["EXA_MODELS_DEPOT"]
-    else
-        TMPDIR[] = joinpath(@__DIR__, "..", "data")
-        mkpath(TMPDIR[])
-    end
+    TMPDIR[] = get(ENV, "EXA_MODELS_DEPOT", joinpath(@__DIR__, "..", "data"))
     return nothing
 end
 
