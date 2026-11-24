@@ -1,7 +1,11 @@
 # Text about an OPF instance and a solution of it: the reports a compiled library carries
-# (cnlp.h, the reports tier), which `cnlp solve` prints before and after a solve.
+# (cnlp.h, the reports tier), which `cnlp solve` prints before and after a solve. Written to
+# compile under `juliac --trim=safe`: blocks are looked up by constant names, and the text
+# is built by concatenating strings.
 
-_nblock(model, name) = hasfield(typeof(model.refs), name) ? ExaModels.total(getfield(model.refs, name).size) : 0
+# the size of block `name` of the model, 0 when its formulation has none
+_nblock(model, ::Val{name}) where {name} =
+    hasfield(typeof(model.refs), name) ? ExaModels.total(getfield(model.refs, name).size)::Int : 0
 _sig(v) = string(round(Float64(v); sigdigits = 3))
 
 """
@@ -11,14 +15,13 @@ A line about an OPF instance: the case it was built from, its buses, generators 
 branches, and its size. The signature of a report (`compile_all`'s `reports`).
 """
 function opf_report_instance(case_file::AbstractString, model::ExaModels.ExaModel)
-    nbus = _nblock(model, :va)
-    ngen = _nblock(model, :pg)
-    narc = max(_nblock(model, :p), _nblock(model, :pf))
-    return string(
-        basename(case_file), ": ", nbus, " buses, ", ngen, " generators, ",
-        _nblock(model, :pf) > 0 ? narc : narc ÷ 2, " branches; ",
-        model.meta.nvar, " variables, ", model.meta.ncon, " constraints",
-    )
+    nbus = _nblock(model, Val(:va))
+    ngen = _nblock(model, Val(:pg))
+    npf = _nblock(model, Val(:pf))               # DC: one flow per branch
+    nbranch = npf > 0 ? npf : _nblock(model, Val(:p)) ÷ 2   # AC: one per arc, two arcs a branch
+    return basename(String(case_file)) * ": " * string(nbus) * " buses, " * string(ngen) *
+        " generators, " * string(nbranch) * " branches; " * string(model.meta.nvar) *
+        " variables, " * string(model.meta.ncon) * " constraints"
 end
 
 """
@@ -31,10 +34,11 @@ The signature of a report (`compile_all`'s `reports`).
 function opf_report_solution(case_file::AbstractString, model::ExaModels.ExaModel, x, y, zl, zu;
                              objective = NaN, status::AbstractString = "")
     v = opf_violations(model, x)
-    io = IOBuffer()
-    print(io, "generation cost ", _sig(objective), "; largest violation by group:")
-    for (k, name) in enumerate(keys(v))
-        print(io, "\n  ", rpad(replace(String(name), '_' => ' '), 18), _sig(v[k]))
-    end
-    return String(take!(io))
+    return "generation cost " * _sig(objective) * "; largest violation by group:" *
+        "\n  power balance     " * _sig(v.power_balance) *
+        "\n  power flow        " * _sig(v.power_flow) *
+        "\n  branch flow       " * _sig(v.branch_flow) *
+        "\n  angle difference  " * _sig(v.angle_difference) *
+        "\n  voltage           " * _sig(v.voltage) *
+        "\n  generation        " * _sig(v.generation)
 end
