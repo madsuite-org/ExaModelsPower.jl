@@ -58,6 +58,11 @@ The static models (`acp`, `acr`, `dcp`) also carry three writers, each called as
   reads back to warm-start from a solved case. It does not read `x`, `y`, `zl`, `zu`, but
   they must be valid arrays of the model's sizes.
 
+They also carry reports, printed by `cnlp solve` around a solve:
+[`opf_report_instance`](@ref) (the case, its buses, generators and branches, the model's
+size) and [`opf_report_solution`](@ref) (the generation cost and the largest violation of
+each group).
+
 ```julia
 compile_all(ExaModelsPower)                        # all six, into "@emp"
 compile_all(ExaModelsPower; only = [:acp, :dcp])
@@ -80,6 +85,14 @@ function ExaModelsCompiler.compile_all(
                         :violations => ExaModelsPower.write_violations,
                         :start => ExaModelsPower.write_case_start)
                for name in (:acp, :acr, :dcp) if name in names]
+    # reports (text before and after a solve, which `cnlp solve` prints), when this
+    # ExaModelsCompiler compiles them
+    statics = [name for name in (:acp, :acr, :dcp) if name in names]
+    if hasmethod(ExaModelsCompiler.compile_library, Tuple{String, Vararg{Pair{Symbol}}}, (:reports,))
+        reports = [name => (instance = ExaModelsPower.opf_report_instance,
+                            solution = ExaModelsPower.opf_report_solution) for name in statics]
+        return ExaModelsCompiler.compile_library(path, chosen...; writers, reports, kwargs...)
+    end
     return ExaModelsCompiler.compile_library(path, chosen...; writers, kwargs...)
 end
 

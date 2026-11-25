@@ -24,6 +24,18 @@ function test_violations(case)
             rows = split.(readlines(out)[2:end], ',')
             @test first.(rows) == string.(collect(keys(v)))
             @test parse.(Float64, last.(rows)) == collect(v)
+
+            # The reports a compiled library carries: the instance, and a solution's cost and
+            # violations by group.
+            ri = opf_report_instance(case, m)
+            @test startswith(ri, basename(case) * ": ")
+            @test occursin(string(m.meta.nvar, " variables, ", m.meta.ncon, " constraints"), ri)
+            @test occursin(" buses, ", ri) && occursin(" generators, ", ri) && occursin(" branches; ", ri)
+            rs = opf_report_solution(case, m, r.solution, r.multipliers, r.multipliers_L, r.multipliers_U;
+                                     objective = r.objective, status = "solved")
+            @test startswith(rs, "generation cost " * string(round(r.objective; sigdigits = 10)) * ";")
+            @test length(split(rs, '\n')) == 1 + length(v)          # one line per group
+            @test occursin("power balance", rs) && occursin("generation", rs)
         end
     end
 end
